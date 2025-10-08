@@ -25,7 +25,7 @@
 
 use base64::{engine::general_purpose, Engine as _};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
 
 /// Solana Config program ID used to store validator configurations
@@ -81,21 +81,75 @@ impl SolanaNetwork {
     }
 }
 
+/// Maximum safe length for string fields to prevent abuse
+/// Based on typical Solana validator info field usage:
+/// - Names: usually 20-50 characters
+/// - Websites: usually 20-100 characters  
+/// - Details: usually 50-300 characters
+/// - Keybase: usually 10-30 characters
+const MAX_STRING_LENGTH: usize = 500; // Much more reasonable limit
+
+/// Sanitize an optional string field during deserialization
+fn sanitize_optional_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt: Option<String> = Option::deserialize(deserializer)?;
+    Ok(opt.map(sanitize_string))
+}
+
+/// Sanitize a string by removing potentially dangerous content and limiting length
+fn sanitize_string(input: String) -> String {
+    // Limit length to prevent abuse - more reasonable limit based on real usage
+    let truncated = if input.len() > MAX_STRING_LENGTH {
+        format!("{}...", &input[..MAX_STRING_LENGTH-3])
+    } else {
+        input
+    };
+    
+    // Clean up the string with better replacement strategy
+    let cleaned = truncated
+        .chars()
+        .map(|c| {
+            match c {
+                // Replace null bytes with spaces (better UX)
+                '\0' => ' ',
+                // Replace other control characters with newlines (better readability)
+                c if c.is_control() && c != '\n' && c != '\r' && c != '\t' => '\n',
+                // Keep everything else including emojis and Unicode
+                c => c,
+            }
+        })
+        .collect::<String>();
+    
+    // Clean up multiple consecutive newlines with a regex-like approach
+    let mut result = cleaned;
+    while result.contains("\n\n\n") {
+        result = result.replace("\n\n\n", "\n\n");
+    }
+    
+    // Only trim spaces, not newlines
+    result.trim_matches(' ').to_string()
+}
+
 /// Validator configuration information extracted from Solana config accounts
 /// This struct strictly follows the official Solana validator-info.json specification
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ValidatorInfo {
     /// Validator display name
+    #[serde(deserialize_with = "sanitize_optional_string")]
     pub name: Option<String>,
 
     /// Validator website URL
+    #[serde(deserialize_with = "sanitize_optional_string")]
     pub website: Option<String>,
 
     /// Validator description/details
+    #[serde(deserialize_with = "sanitize_optional_string")]
     pub details: Option<String>,
 
     /// Keybase username for identity verification
-    #[serde(alias = "keybaseUsername")]
+    #[serde(alias = "keybaseUsername", deserialize_with = "sanitize_optional_string")]
     pub keybase_username: Option<String>,
 }
 
@@ -605,6 +659,99 @@ mod tests {
         let client = ValidatorConfigClient::new_custom_with_config(custom_url, config);
         assert_eq!(client.network.rpc_url(), custom_url);
         assert_eq!(client.config.timeout_seconds, 120);
+    }
+
+    #[test]
+    fn test_string_sanitization() {
+        // Test normal strings
+        assert_eq!(sanitize_string("Normal Validator".to_string()), "Normal Validator");
+        
+        // Test emojis (should be preserved)
+        assert_eq!(sanitize_string("Validator 🚀💎".to_string()), "Validator 🚀💎");
+        
+        // Test null bytes (should be replaced with spaces)
+        assert_eq!(sanitize_string("Bad\0Validator".to_string()), "Bad Validator");
+        assert_eq!(sanitize_string("Evil\0null\0bytes".to_string()), "Evil null bytes");
+        
+        // Test excessive length (should be truncated at 500)
+        let long_string = "a".repeat(600);
+        let sanitized = sanitize_string(long_string);
+        assert_eq!(sanitized.len(), 500);
+        assert!(sanitized.ends_with("..."));
+        
+        // Test various Unicode characters
+        assert_eq!(sanitize_string("Café Münchën 中文".to_string()), "Café Münchën 中文");
+        
+        // Test control characters (should be replaced with newlines, but limited to max 2 consecutive)
+        let control_chars = "Test\x01\x02\x03";
+        assert_eq!(sanitize_string(control_chars.to_string()), "Test\n\n");
+        
+        // Test mixed control chars and null bytes
+        assert_eq!(sanitize_string("Bad\x01control\0and\x02null".to_string()), "Bad\ncontrol and\nnull");
+        
+        // Test whitespace preservation (trim only spaces, keep internal whitespace)
+        assert_eq!(sanitize_string("  Spaced  Out\tValidator\n  ".to_string()), "Spaced  Out\tValidator\n");
+        
+        // Test multiple consecutive newlines cleanup
+        assert_eq!(sanitize_string("Line1\n\n\n\nLine2".to_string()), "Line1\n\nLine2");
+    }
+
+    #[test]
+    fn test_validator_info_deserialization_with_problematic_content() {
+        // Test JSON with emojis and special characters
+        let json_with_emojis = r#"
+        {
+            "name": "🚀 Rocket Validator 💎",
+            "website": "https://rocket-validator.com",
+            "details": "Best validator ever! 🌟 Supporting the network since 2021 ⚡",
+            "keybaseUsername": "rocket_validator"
+        }
+        "#;
+        
+        let result: Result<ValidatorInfo, _> = serde_json::from_str(json_with_emojis);
+        if let Err(e) = &result {
+            println!("Error parsing emoji JSON: {}", e);
+        }
+        assert!(result.is_ok());
+        let info = result.unwrap();
+        assert_eq!(info.name.as_ref().unwrap(), "🚀 Rocket Validator 💎");
+        assert!(info.details.as_ref().unwrap().contains("🌟"));
+        
+        // Test with excessively long content
+        let long_name = "a".repeat(600);
+        let json_with_long_content = format!(r#"
+        {{
+            "name": "{}",
+            "website": "https://test.com",
+            "details": "Normal details",
+            "keybaseUsername": null
+        }}
+        "#, long_name);
+        
+        let result: Result<ValidatorInfo, _> = serde_json::from_str(&json_with_long_content);
+        if let Err(e) = &result {
+            println!("Error parsing long content JSON: {}", e);
+        }
+        assert!(result.is_ok());
+        let info = result.unwrap();
+        let name = info.name.unwrap();
+        assert_eq!(name.len(), 500);
+        assert!(name.ends_with("..."));
+    }
+
+    #[test]
+    fn test_malformed_json_handling() {
+        // Test with null bytes in JSON
+        let json_with_nulls = r#"{
+            "name": "BadValidator",
+            "website": "https://test.com",
+            "details": null,
+            "keybaseUsername": null
+        }"#;
+        let result: Result<ValidatorInfo, _> = serde_json::from_str(json_with_nulls);
+        assert!(result.is_ok());
+        let info = result.unwrap();
+        assert_eq!(info.name.unwrap(), "BadValidator");
     }
 
     #[test]

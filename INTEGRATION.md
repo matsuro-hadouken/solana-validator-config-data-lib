@@ -24,13 +24,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Choose Your Method
 
-### Method 1: Add as Dependency (Easiest)
+### Method 1: Add as Git Dependency (Recommended)
 
 1. **Add to your `Cargo.toml`:**
 ```toml
 [dependencies]
-solana-validator-config = { path = "../path/to/this/library" }
+solana-validator-config = { git = "https://github.com/matsuro-hadouken/solana-validator-config-data-lib" }
 tokio = { version = "1.0", features = ["full"] }
+```
+
+**Alternative options:**
+```toml
+# Use specific branch
+solana-validator-config = { git = "https://github.com/matsuro-hadouken/solana-validator-config-data-lib", branch = "main" }
+
+# Use specific tag (when available)
+solana-validator-config = { git = "https://github.com/matsuro-hadouken/solana-validator-config-data-lib", tag = "v0.1.0" }
 ```
 
 2. **Use in your code:**
@@ -63,7 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Method 2: Copy the Code
 
-If you want to copy the library code directly:
+If you want to copy the library code directly into your project:
 
 1. **Copy `src/lib.rs` to your project**
 2. **Add dependencies to your `Cargo.toml`:**

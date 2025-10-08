@@ -2,6 +2,10 @@
 
 A simple Rust library for retrieving Solana validator configuration data directly from the blockchain. Get validator names, websites, descriptions, and metadata with just a few lines of code.
 
+**🚀 Private RPC Ready**: Built specifically for production use with private RPC endpoints (QuickNode, Alchemy, Helius, etc.)
+
+👉 **[Quick Start Guide](GETTING_STARTED.md)** - Get up and running in 2 minutes!
+
 ## What This Library Does
 
 This library connects to the Solana blockchain and fetches validator configuration information that validators have published about themselves. You can:
@@ -16,8 +20,14 @@ This library connects to the Solana blockchain and fetches validator configurati
 
 ## Key Features
 
+- **🔒 Private RPC Support** - Works seamlessly with QuickNode, Alchemy, Helius, and other private providers
+- **🛡️ Input Sanitization** - Automatically handles emojis, special characters, and malicious content
 - **Simple API** - Just a few functions to get all validator data
 - **Multiple networks** - Mainnet, Testnet, Devnet, or custom RPC
+- **Type safe** - Full Rust type safety with proper error handling
+- **Async support** - Non-blocking operations with Tokio
+- **Built-in stats** - Get counts and summaries automatically
+- **Well tested** - Comprehensive test coverage including security scenarios
 - **Type safe** - Full Rust type safety with proper error handling
 - **Async support** - Non-blocking operations with Tokio
 - **Built-in stats** - Get counts and summaries automatically
@@ -29,8 +39,17 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solana-validator-config = "0.1.0"
+solana-validator-config = { git = "https://github.com/matsuro-hadouken/solana-validator-config-data-lib" }
 tokio = { version = "1.0", features = ["full"] }
+```
+
+**Alternative installation options:**
+```toml
+# Use specific branch
+solana-validator-config = { git = "https://github.com/matsuro-hadouken/solana-validator-config-data-lib", branch = "main" }
+
+# Use specific tag (recommended for production)
+solana-validator-config = { git = "https://github.com/matsuro-hadouken/solana-validator-config-data-lib", tag = "v0.1.0" }
 ```
 
 ## Simple Example
@@ -75,6 +94,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 **Note**: Public RPC endpoints are included for easy testing and getting started, but you should use private RPC endpoints for production applications.
+
+## 📦 Publishing Status
+
+This library is currently available as a **GitHub repository**. It's not yet published to crates.io, so you need to reference it via Git URL in your `Cargo.toml`.
+
+### Future Plans
+- [ ] Publish to crates.io for easier installation (`cargo add solana-validator-config`)
+- [ ] Add more comprehensive examples
+- [ ] Performance optimizations
+
+## 🛡️ Security & Data Handling
+
+This library includes robust protections against problematic validator data:
+
+### **Input Sanitization**
+- **Length limits**: Strings are truncated to 500 characters to prevent abuse
+- **Character replacement**: 
+  - Null bytes (`\0`) are replaced with spaces for better readability
+  - Control characters are replaced with newlines (except `\n`, `\r`, `\t`)
+  - Maximum 2 consecutive newlines to prevent formatting abuse
+- **Unicode support**: Properly handles emojis and international characters
+- **Encoding safety**: Validates UTF-8 encoding from blockchain data
+
+### **What's Protected**
+```rust
+// ✅ These work safely:
+"🚀 Rocket Validator 💎"           // Emojis preserved
+"Café Münchën Validator"           // International characters
+"Validator\nWith\nNewlines"        // Reasonable whitespace
+
+// 🛡️ These are sanitized:
+"Validator\0WithNullBytes"         // → "ValidatorWithNullBytes"
+"A".repeat(2000)                   // → Truncated to 1000 chars + "..."
+"Bad\x01\x02ControlChars"          // → "BadControlChars"
+```
+
+### **Error Handling**
+- Graceful handling of malformed JSON from blockchain
+- UTF-8 conversion errors are caught and reported
+- Base64 decoding failures don't crash the application
+- Invalid validator data is silently filtered out
+
+**Your application is protected** from malicious or malformed validator data automatically.
 
 ## Different Networks
 
