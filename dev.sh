@@ -22,54 +22,26 @@ case "${1:-help}" in
         echo "All tests passed!"
         ;;
     
-    "example")
-        echo "Running main example..."
-        cargo run --bin validator-config-example
-        ;;
-    
-    "simple")
+    "example"|"simple")
         echo "Running simple integration example..."
         cargo run --example simple_usage
         ;;
     
-    "run")
-        echo "Running default example with info logging..."
-        RUST_LOG=info cargo run --bin validator-config-example
+    "test-ids")
+        echo "Testing validator identity extraction..."
+        cargo run --example test_validator_ids
         ;;
     
-    "run-private")
-        if [ -z "$SOLANA_RPC_URL" ]; then
-            echo "ERROR: SOLANA_RPC_URL environment variable not set"
-            echo ""
-            echo "To test with a private RPC endpoint, set the environment variable:"
-            echo "  export SOLANA_RPC_URL='https://your-private-rpc.com'"
-            echo "  ./dev.sh run-private"
-            echo ""
-            echo "Examples of private RPC providers:"
-            echo "  QuickNode: https://your-endpoint.quiknode.pro/token/"
-            echo "  Alchemy:   https://solana-mainnet.g.alchemy.com/v2/your-api-key"
-            echo "  Helius:    https://rpc.helius.xyz/?api-key=your-api-key"
-            echo "  GenesysGo: https://ssc-dao.genesysgo.net/"
-            exit 1
-        fi
-        echo "Running example with private RPC endpoint: $SOLANA_RPC_URL"
-        RUST_LOG=info cargo run --bin validator-config-example
+    "run")
+        echo "Running simple example with info logging..."
+        RUST_LOG=info cargo run --example simple_usage
         ;;
     
     "test-rpc")
-        echo "Testing different RPC endpoints..."
+        echo "Testing RPC endpoints..."
         echo ""
         echo "1. Testing with Mainnet public RPC (may be rate limited)..."
         RUST_LOG=warn timeout 30s cargo run --example simple_usage || echo "Public RPC test completed (may have failed due to rate limits)"
-        echo ""
-        
-        if [ -n "$SOLANA_RPC_URL" ]; then
-            echo "2. Testing with your private RPC: $SOLANA_RPC_URL"
-            RUST_LOG=warn timeout 30s cargo run --bin validator-config-example || echo "Private RPC test failed"
-        else
-            echo "2. Skipping private RPC test (SOLANA_RPC_URL not set)"
-            echo "   To test private RPC: export SOLANA_RPC_URL='https://your-private-rpc.com'"
-        fi
         echo ""
         echo "RPC testing completed!"
         ;;
@@ -95,8 +67,8 @@ case "${1:-help}" in
     
     "benchmark")
         echo "Running quick benchmark..."
-        echo "RUST_LOG=info cargo run --bin validator-config-example --release"
-        time RUST_LOG=info cargo run --bin validator-config-example --release
+        echo "RUST_LOG=info cargo run --example simple_usage --release"
+        time RUST_LOG=info cargo run --example simple_usage --release
         ;;
     
     "release")
@@ -105,39 +77,36 @@ case "${1:-help}" in
         echo "Release build completed!"
         ;;
     
-    "install")
-        echo "Installing as local binary..."
-        cargo install --path .
-        echo "Installation completed!"
+    "validator-test")
+        echo "Quick validator identity test..."
+        echo "Looking for test validators (including your specified one)..."
+        cargo run --example test_validator_ids | grep -E "(Found|Total|Extracted|Not found)"
         ;;
     
     "help"|*)
         echo "Solana Validator Config Development Tool"
-        echo "Usage: $0 {run|run-private|test-rpc|test|check|benchmark|release|install|clean|help}"
+        echo "Usage: $0 {run|example|test-ids|test-rpc|test|check|benchmark|release|validator-test|clean|help}"
         echo ""
         echo "Commands:"
-        echo "  run        - Run the example with public RPC (for testing only)"
-        echo "  run-private- Run the example with private RPC (requires SOLANA_RPC_URL)"
-        echo "  test-rpc   - Test both public and private RPC endpoints"
-        echo "  test       - Run all unit tests"
-        echo "  check      - Run comprehensive quality checks"
-        echo "  benchmark  - Run quick performance benchmark"
-        echo "  release    - Build optimized release version"
-        echo "  install    - Install as local binary"
-        echo "  clean      - Clean build artifacts"
-        echo "  help       - Show this help message"
+        echo "  run           - Run the example with info logging"
+        echo "  example       - Run the simple integration example"
+        echo "  test-ids      - Test validator identity extraction"
+        echo "  validator-test- Quick test to verify known validators"
+        echo "  test-rpc      - Test RPC endpoints"
+        echo "  test          - Run all unit tests"
+        echo "  check         - Run comprehensive quality checks"
+        echo "  benchmark     - Run quick performance benchmark"
+        echo "  release       - Build optimized release version"
+        echo "  clean         - Clean build artifacts"
+        echo "  help          - Show this help message"
         echo ""
-        echo "Private RPC Examples:"
-        echo "  export SOLANA_RPC_URL='https://your-endpoint.quiknode.pro/token/'"
-        echo "  ./dev.sh run-private"
+        echo "Library Usage:"
+        echo "  This is now a clean library that returns ValidatorInfo structs"
+        echo "  with validator_identity field containing actual validator keys!"
         echo ""
-        echo "  export SOLANA_RPC_URL='https://solana-mainnet.g.alchemy.com/v2/your-api-key'"
-        echo "  ./dev.sh test-rpc"
-        echo ""
-        echo "Production Usage:"
-        echo "  ./dev.sh run          # Public RPC (testing only - rate limited)"
-        echo "  ./dev.sh run-private  # Private RPC (recommended for production)"
-        echo "  ./dev.sh check        # Quality assurance"
-        echo "  ./dev.sh benchmark    # Performance test"
+        echo "Quick Test:"
+        echo "  ./dev.sh validator-test  # Test validator identity extraction with your specified key"
+        echo "  ./dev.sh example         # Run full integration example"
+        echo "  ./dev.sh check           # Quality assurance"
         ;;
 esac

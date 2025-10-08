@@ -1,6 +1,9 @@
 // examples/simple_usage.rs
 //! Simple example showing how to integrate the Solana validator config library
 //! into your own project.
+//!
+//! IMPORTANT: This library now returns the actual validator identity public keys
+//! that can be used to connect to validators, not Config Program account keys.
 
 use solana_validator_config::{SolanaNetwork, ValidatorConfigClient, ValidatorInfo};
 use std::collections::HashMap;
@@ -8,21 +11,25 @@ use std::collections::HashMap;
 /// Example struct showing how you might integrate validator data into your own types
 #[derive(Debug, Clone)]
 struct MyValidatorData {
-    pub pubkey: String,
+    pub validator_identity: Option<String>, // The actual validator identity key
     pub name: String,
     pub website: Option<String>,
     pub description: Option<String>,
     pub verified: bool, // Has Keybase verification
 }
 
-impl From<(String, ValidatorInfo)> for MyValidatorData {
-    fn from((pubkey, info): (String, ValidatorInfo)) -> Self {
+impl From<ValidatorInfo> for MyValidatorData {
+    fn from(info: ValidatorInfo) -> Self {
+        let name = info.display_name().unwrap_or("Unknown").to_string();
+        let description = info.display_description().map(|s| s.to_string());
+        let verified = info.keybase_username.is_some();
+
         Self {
-            pubkey,
-            name: info.display_name().unwrap_or("Unknown").to_string(),
-            website: info.website.clone(),
-            description: info.display_description().map(|s| s.to_string()),
-            verified: info.keybase_username.is_some(),
+            validator_identity: info.validator_identity,
+            name,
+            website: info.website,
+            description,
+            verified,
         }
     }
 }
@@ -60,7 +67,9 @@ async fn process_validators_for_my_app() -> Result<(), Box<dyn std::error::Error
     // Example: Find a specific validator and use all fields
     if let Some(validator) = by_name.get("Solana Foundation") {
         println!("Found Solana Foundation validator:");
-        println!("  Public Key: {}", validator.pubkey);
+        if let Some(identity) = &validator.validator_identity {
+            println!("  Validator Identity: {}", identity);
+        }
         println!("  Name: {}", validator.name);
         if let Some(website) = &validator.website {
             println!("  Website: {}", website);
@@ -75,7 +84,8 @@ async fn process_validators_for_my_app() -> Result<(), Box<dyn std::error::Error
     println!("\n--- Validators with websites ---");
     for (_, validator) in by_name.iter().take(5) {
         if let Some(website) = &validator.website {
-            println!("• {} - {} ({})", validator.name, website, validator.pubkey);
+            let identity = validator.validator_identity.as_deref().unwrap_or("Unknown");
+            println!("• {} - {} ({})", validator.name, website, identity);
         }
     }
 
@@ -99,7 +109,7 @@ async fn process_validators_for_my_app() -> Result<(), Box<dyn std::error::Error
 use std::time::{Duration, Instant};
 
 struct ValidatorCache {
-    data: Vec<(String, ValidatorInfo)>,
+    data: Vec<ValidatorInfo>,
     last_updated: Instant,
     cache_duration: Duration,
 }
@@ -113,9 +123,7 @@ impl ValidatorCache {
         }
     }
 
-    async fn get_validators(
-        &mut self,
-    ) -> Result<&[(String, ValidatorInfo)], Box<dyn std::error::Error>> {
+    async fn get_validators(&mut self) -> Result<&[ValidatorInfo], Box<dyn std::error::Error>> {
         if self.last_updated.elapsed() > self.cache_duration {
             println!("Cache expired, fetching fresh data...");
             let client = ValidatorConfigClient::new(SolanaNetwork::Mainnet);

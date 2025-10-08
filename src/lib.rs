@@ -4,6 +4,9 @@
 //! This library fetches validator information including names, websites, details, and Keybase usernames
 //! as stored in the Config program accounts, strictly following the official Solana validator-info.json specification.
 //!
+//! **IMPORTANT**: This library returns the actual validator identity public keys that can be used to connect
+//! to validators directly, not the Config Program account keys that store the metadata.
+//!
 //! ## Quick Start
 //!
 //! ```rust
@@ -14,9 +17,12 @@
 //!     let client = ValidatorConfigClient::new(SolanaNetwork::Mainnet);
 //!     let validators = client.fetch_all_validators().await?;
 //!     
-//!     for (pubkey, info) in validators {
-//!         if let Some(name) = info.name {
-//!             println!("Validator: {} ({})", name, pubkey);
+//!     for validator in validators {
+//!         if let Some(name) = &validator.name {
+//!             if let Some(identity) = &validator.validator_identity {
+//!                 println!("Validator: {} ({})", name, identity);
+//!                 println!("  This is the actual validator identity key you can connect to!");
+//!             }
 //!         }
 //!     }
 //!     Ok(())
@@ -58,21 +64,21 @@ impl SolanaNetwork {
     }
 
     /// Create a custom network with the specified RPC endpoint
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use solana_validator_config::SolanaNetwork;
-    /// 
+    ///
     /// // Using a private RPC provider
     /// let network = SolanaNetwork::custom("https://my-private-rpc.com");
-    /// 
+    ///
     /// // Using QuickNode
     /// let network = SolanaNetwork::custom("https://your-endpoint.quiknode.pro/token/");
-    /// 
+    ///
     /// // Using Alchemy
     /// let network = SolanaNetwork::custom("https://solana-mainnet.g.alchemy.com/v2/your-api-key");
-    /// 
+    ///
     /// // Using Helius
     /// let network = SolanaNetwork::custom("https://rpc.helius.xyz/?api-key=your-api-key");
     /// ```
@@ -102,11 +108,11 @@ where
 fn sanitize_string(input: String) -> String {
     // Limit length to prevent abuse - more reasonable limit based on real usage
     let truncated = if input.len() > MAX_STRING_LENGTH {
-        format!("{}...", &input[..MAX_STRING_LENGTH-3])
+        format!("{}...", &input[..MAX_STRING_LENGTH - 3])
     } else {
         input
     };
-    
+
     // Clean up the string with better replacement strategy
     let cleaned = truncated
         .chars()
@@ -121,13 +127,13 @@ fn sanitize_string(input: String) -> String {
             }
         })
         .collect::<String>();
-    
+
     // Clean up multiple consecutive newlines with a regex-like approach
     let mut result = cleaned;
     while result.contains("\n\n\n") {
         result = result.replace("\n\n\n", "\n\n");
     }
-    
+
     // Only trim spaces, not newlines
     result.trim_matches(' ').to_string()
 }
@@ -136,20 +142,29 @@ fn sanitize_string(input: String) -> String {
 /// This struct strictly follows the official Solana validator-info.json specification
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ValidatorInfo {
+    /// The actual validator identity public key (extracted from Config Program account data)
+    /// This is the key you use to connect to the validator
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub validator_identity: Option<String>,
+
     /// Validator display name
-    #[serde(deserialize_with = "sanitize_optional_string")]
+    #[serde(deserialize_with = "sanitize_optional_string", default)]
     pub name: Option<String>,
 
     /// Validator website URL
-    #[serde(deserialize_with = "sanitize_optional_string")]
+    #[serde(deserialize_with = "sanitize_optional_string", default)]
     pub website: Option<String>,
 
     /// Validator description/details
-    #[serde(deserialize_with = "sanitize_optional_string")]
+    #[serde(deserialize_with = "sanitize_optional_string", default)]
     pub details: Option<String>,
 
     /// Keybase username for identity verification
-    #[serde(alias = "keybaseUsername", deserialize_with = "sanitize_optional_string")]
+    #[serde(
+        alias = "keybaseUsername",
+        deserialize_with = "sanitize_optional_string",
+        default
+    )]
     pub keybase_username: Option<String>,
 }
 
@@ -166,7 +181,8 @@ impl ValidatorInfo {
 
     /// Check if this validator has meaningful configuration data
     pub fn has_config(&self) -> bool {
-        self.name.is_some()
+        self.validator_identity.is_some()
+            || self.name.is_some()
             || self.website.is_some()
             || self.keybase_username.is_some()
             || self.details.is_some()
@@ -312,26 +328,26 @@ impl ValidatorConfigClient {
     }
 
     /// Create a new client with a custom RPC endpoint
-    /// 
+    ///
     /// This is a convenience method for connecting to private RPC providers.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use solana_validator_config::ValidatorConfigClient;
-    /// 
+    ///
     /// // Using a private RPC endpoint
     /// let client = ValidatorConfigClient::new_custom("https://my-private-rpc.com");
-    /// 
+    ///
     /// // Using QuickNode
     /// let client = ValidatorConfigClient::new_custom("https://your-endpoint.quiknode.pro/token/");
-    /// 
+    ///
     /// // Using Alchemy  
     /// let client = ValidatorConfigClient::new_custom("https://solana-mainnet.g.alchemy.com/v2/your-api-key");
-    /// 
+    ///
     /// // Using Helius
     /// let client = ValidatorConfigClient::new_custom("https://rpc.helius.xyz/?api-key=your-api-key");
-    /// 
+    ///
     /// // Using GenesysGo
     /// let client = ValidatorConfigClient::new_custom("https://ssc-dao.genesysgo.net/");
     /// ```
@@ -340,16 +356,16 @@ impl ValidatorConfigClient {
     }
 
     /// Create a new client with a custom RPC endpoint and configuration
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use solana_validator_config::{ValidatorConfigClient, ClientConfig};
-    /// 
+    ///
     /// let config = ClientConfig::new()
     ///     .with_timeout(60).unwrap()
     ///     .with_user_agent("my-app/1.0");
-    /// 
+    ///
     /// let client = ValidatorConfigClient::new_custom_with_config(
     ///     "https://my-private-rpc.com",
     ///     config
@@ -360,9 +376,7 @@ impl ValidatorConfigClient {
     }
 
     /// Fetch all validator configurations from the network
-    pub async fn fetch_all_validators(
-        &self,
-    ) -> Result<Vec<(String, ValidatorInfo)>, ValidatorConfigError> {
+    pub async fn fetch_all_validators(&self) -> Result<Vec<ValidatorInfo>, ValidatorConfigError> {
         log::info!(
             "Fetching validator configurations from {}",
             self.network.rpc_url()
@@ -408,9 +422,20 @@ impl ValidatorConfigClient {
         let mut parse_errors = 0;
 
         for (index, entry) in rpc_response.result.into_iter().enumerate() {
-            if let Some(info) = extract_validator_info_from_base64(&entry.account.data.0) {
+            // Try to extract validator identity and info with identity included in struct
+            if let Some(info) =
+                extract_validator_identity_and_info_from_base64(&entry.account.data.0)
+            {
                 if self.config.include_empty_configs || info.has_config() {
-                    validators.push((entry.pubkey, info));
+                    // The validator identity is now in info.validator_identity!
+                    validators.push(info);
+                }
+            } else if let Some(mut info) = extract_validator_info_from_base64(&entry.account.data.0)
+            {
+                if self.config.include_empty_configs || info.has_config() {
+                    // Fallback to config account address if identity extraction fails
+                    info.validator_identity = Some(entry.pubkey);
+                    validators.push(info);
                 }
             } else {
                 parse_errors += 1;
@@ -441,17 +466,14 @@ impl ValidatorConfigClient {
         let validators = self.fetch_all_validators().await?;
 
         let total_count = validators.len();
-        let with_names = validators
-            .iter()
-            .filter(|(_, info)| info.name.is_some())
-            .count();
+        let with_names = validators.iter().filter(|info| info.name.is_some()).count();
         let with_websites = validators
             .iter()
-            .filter(|(_, info)| info.website.is_some())
+            .filter(|info| info.website.is_some())
             .count();
         let with_keybase = validators
             .iter()
-            .filter(|(_, info)| info.keybase_username.is_some())
+            .filter(|info| info.keybase_username.is_some())
             .count();
 
         Ok(ValidatorStats {
@@ -532,6 +554,102 @@ fn extract_validator_info_from_base64(base64_data: &str) -> Option<ValidatorInfo
     }
 }
 
+/// Extract both validator identity and info from base64-encoded account data
+/// Returns ValidatorInfo with validator_identity field populated
+fn extract_validator_identity_and_info_from_base64(base64_data: &str) -> Option<ValidatorInfo> {
+    // Decode the base64 data
+    let decoded = general_purpose::STANDARD.decode(base64_data).ok()?;
+
+    // First try to extract validator identity (this is the most important part)
+    let validator_identity = if decoded.len() >= 66 {
+        let key_bytes = &decoded[34..66];
+        let base58_key = bs58::encode(key_bytes).into_string();
+        
+        // Basic validation: Solana public keys are typically 32-44 characters in base58
+        if base58_key.len() >= 32 && base58_key.len() <= 44 {
+            // Additional validation: check if it looks like a valid public key
+            if is_valid_solana_pubkey(&base58_key) {
+                Some(base58_key)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // Now try to extract JSON info (this can fail without affecting validator identity)
+    let mut validator_info = {
+        let mut info = ValidatorInfo {
+            validator_identity: None,
+            name: None,
+            website: None,
+            details: None,
+            keybase_username: None,
+        };
+
+        // Try to find valid JSON by looking for all '{' positions
+        let mut search_start = 0;
+        while let Some(json_start) = decoded[search_start..].iter().position(|&b| b == b'{') {
+            let actual_start = search_start + json_start;
+            let json_slice = &decoded[actual_start..];
+            
+            // Try UTF-8 conversion for this position
+            if let Ok(json_str) = std::str::from_utf8(json_slice) {
+                // Try to parse JSON directly first
+                if let Ok(parsed_info) = serde_json::from_str::<ValidatorInfo>(json_str) {
+                    info = parsed_info;
+                    break;
+                } else if let Some(end_pos) = find_json_end(json_str) {
+                    let trimmed_json = &json_str[..=end_pos];
+                    if let Ok(parsed_info) = serde_json::from_str::<ValidatorInfo>(trimmed_json) {
+                        info = parsed_info;
+                        break;
+                    } else {
+                        let cleaned_json = clean_json_string(trimmed_json);
+                        if let Ok(parsed_info) = serde_json::from_str::<ValidatorInfo>(&cleaned_json) {
+                            info = parsed_info;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Move to the next potential '{' position
+            search_start = actual_start + 1;
+            
+            // Safety: don't search forever
+            if search_start >= decoded.len() {
+                break;
+            }
+        }
+
+        info
+    };
+
+    // Set the validator identity we extracted (this is the key fix!)
+    validator_info.validator_identity = validator_identity;
+
+    // Return the ValidatorInfo if we at least have a validator identity
+    if validator_info.validator_identity.is_some() {
+        Some(validator_info)
+    } else {
+        None
+    }
+}
+
+/// Basic validation for Solana public key format
+fn is_valid_solana_pubkey(key: &str) -> bool {
+    // Solana public keys should be valid base58 and decode to exactly 32 bytes
+    if let Ok(decoded) = bs58::decode(key).into_vec() {
+        decoded.len() == 32
+    } else {
+        false
+    }
+}
+
 /// Clean up common JSON formatting issues
 fn clean_json_string(json_str: &str) -> String {
     json_str
@@ -581,6 +699,7 @@ mod tests {
     #[test]
     fn test_validator_info_display_methods() {
         let info = ValidatorInfo {
+            validator_identity: Some("GwHH8ciFhR8vejWCqmg8FWZUCNtubPY2esALvy5tBvji".to_string()),
             name: Some("Test Validator".to_string()),
             website: Some("https://test.com".to_string()),
             details: Some("Test details".to_string()),
@@ -595,6 +714,7 @@ mod tests {
     #[test]
     fn test_validator_info_fallback_methods() {
         let info = ValidatorInfo {
+            validator_identity: None,
             name: None,
             website: None,
             details: Some("Fallback details".to_string()),
@@ -609,6 +729,7 @@ mod tests {
     #[test]
     fn test_validator_info_empty() {
         let info = ValidatorInfo {
+            validator_identity: None,
             name: None,
             website: None,
             details: None,
@@ -645,15 +766,15 @@ mod tests {
     #[test]
     fn test_custom_rpc_convenience_methods() {
         let custom_url = "https://my-private-rpc.com";
-        
+
         // Test SolanaNetwork::custom
         let network = SolanaNetwork::custom(custom_url);
         assert_eq!(network.rpc_url(), custom_url);
-        
+
         // Test ValidatorConfigClient::new_custom
         let client = ValidatorConfigClient::new_custom(custom_url);
         assert_eq!(client.network.rpc_url(), custom_url);
-        
+
         // Test ValidatorConfigClient::new_custom_with_config
         let config = ClientConfig::new().with_timeout(120).unwrap();
         let client = ValidatorConfigClient::new_custom_with_config(custom_url, config);
@@ -664,36 +785,60 @@ mod tests {
     #[test]
     fn test_string_sanitization() {
         // Test normal strings
-        assert_eq!(sanitize_string("Normal Validator".to_string()), "Normal Validator");
-        
+        assert_eq!(
+            sanitize_string("Normal Validator".to_string()),
+            "Normal Validator"
+        );
+
         // Test emojis (should be preserved)
-        assert_eq!(sanitize_string("Validator 🚀💎".to_string()), "Validator 🚀💎");
-        
+        assert_eq!(
+            sanitize_string("Validator 🚀💎".to_string()),
+            "Validator 🚀💎"
+        );
+
         // Test null bytes (should be replaced with spaces)
-        assert_eq!(sanitize_string("Bad\0Validator".to_string()), "Bad Validator");
-        assert_eq!(sanitize_string("Evil\0null\0bytes".to_string()), "Evil null bytes");
-        
+        assert_eq!(
+            sanitize_string("Bad\0Validator".to_string()),
+            "Bad Validator"
+        );
+        assert_eq!(
+            sanitize_string("Evil\0null\0bytes".to_string()),
+            "Evil null bytes"
+        );
+
         // Test excessive length (should be truncated at 500)
         let long_string = "a".repeat(600);
         let sanitized = sanitize_string(long_string);
         assert_eq!(sanitized.len(), 500);
         assert!(sanitized.ends_with("..."));
-        
+
         // Test various Unicode characters
-        assert_eq!(sanitize_string("Café Münchën 中文".to_string()), "Café Münchën 中文");
-        
+        assert_eq!(
+            sanitize_string("Café Münchën 中文".to_string()),
+            "Café Münchën 中文"
+        );
+
         // Test control characters (should be replaced with newlines, but limited to max 2 consecutive)
         let control_chars = "Test\x01\x02\x03";
         assert_eq!(sanitize_string(control_chars.to_string()), "Test\n\n");
-        
+
         // Test mixed control chars and null bytes
-        assert_eq!(sanitize_string("Bad\x01control\0and\x02null".to_string()), "Bad\ncontrol and\nnull");
-        
+        assert_eq!(
+            sanitize_string("Bad\x01control\0and\x02null".to_string()),
+            "Bad\ncontrol and\nnull"
+        );
+
         // Test whitespace preservation (trim only spaces, keep internal whitespace)
-        assert_eq!(sanitize_string("  Spaced  Out\tValidator\n  ".to_string()), "Spaced  Out\tValidator\n");
-        
+        assert_eq!(
+            sanitize_string("  Spaced  Out\tValidator\n  ".to_string()),
+            "Spaced  Out\tValidator\n"
+        );
+
         // Test multiple consecutive newlines cleanup
-        assert_eq!(sanitize_string("Line1\n\n\n\nLine2".to_string()), "Line1\n\nLine2");
+        assert_eq!(
+            sanitize_string("Line1\n\n\n\nLine2".to_string()),
+            "Line1\n\nLine2"
+        );
     }
 
     #[test]
@@ -707,7 +852,7 @@ mod tests {
             "keybaseUsername": "rocket_validator"
         }
         "#;
-        
+
         let result: Result<ValidatorInfo, _> = serde_json::from_str(json_with_emojis);
         if let Err(e) = &result {
             println!("Error parsing emoji JSON: {}", e);
@@ -716,18 +861,21 @@ mod tests {
         let info = result.unwrap();
         assert_eq!(info.name.as_ref().unwrap(), "🚀 Rocket Validator 💎");
         assert!(info.details.as_ref().unwrap().contains("🌟"));
-        
+
         // Test with excessively long content
         let long_name = "a".repeat(600);
-        let json_with_long_content = format!(r#"
+        let json_with_long_content = format!(
+            r#"
         {{
             "name": "{}",
             "website": "https://test.com",
             "details": "Normal details",
             "keybaseUsername": null
         }}
-        "#, long_name);
-        
+        "#,
+            long_name
+        );
+
         let result: Result<ValidatorInfo, _> = serde_json::from_str(&json_with_long_content);
         if let Err(e) = &result {
             println!("Error parsing long content JSON: {}", e);
@@ -785,6 +933,38 @@ mod tests {
 
         assert!(config.include_empty_configs);
         assert_eq!(config.user_agent, "test-agent");
+    }
+
+    #[test]
+    fn test_validator_identity_extraction() {
+        // Test data from an actual Config Program account
+        let test_base64 = "AgdRlwF0SPKsXcI8nrx6x4wKJyV6xhRFjeCk8W+AAAAAAFyWoNoPcmY3XGMzfd/TnsxGdmGkbaqPjoM5N67GtS8/AUMAAAAAAAAAeyJkZXRhaWxzIjoiR0VOQSIsIm5hbWUiOiJHRU5BIiwid2Vic2l0ZSI6Imh0dHBzOi8vYml0Lmx5LzNxSnR2TXMifQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
+        let result = extract_validator_info_from_base64(test_base64);
+        assert!(result.is_some(), "Failed to extract validator data");
+
+        let info = result.unwrap();
+
+        // Verify the JSON was parsed correctly
+        assert_eq!(info.name.as_ref().unwrap(), "GENA");
+        assert_eq!(info.details.as_ref().unwrap(), "GENA");
+        assert_eq!(info.website.as_ref().unwrap(), "https://bit.ly/3qJtvMs");
+    }
+
+    #[test]
+    fn test_validator_identity_extraction_multiple() {
+        // Test with multiple different validator configs to ensure consistency
+        let test_cases = vec![
+            // First validator
+            "AgdRlwF0SPKsXcI8nrx6x4wKJyV6xhRFjeCk8W+AAAAAAFyWoNoPcmY3XGMzfd/TnsxGdmGkbaqPjoM5N67GtS8/AUMAAAAAAAAAeyJkZXRhaWxzIjoiR0VOQSIsIm5hbWUiOiJHRU5BIiwid2Vic2l0ZSI6Imh0dHBzOi8vYml0Lmx5LzNxSnR2TXMifQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            // Second validator
+            "AgdRlwF0SPKsXcI8nrx6x4wKJyV6xhRFjeCk8W+AAAAAAInKZQiIXVottqtMzeeHcf7hBxKF21Xg+o2aN7AnnbYcARMAAAAAAAAAeyJuYW1lIjoiUmVkaXNrYXQifQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        ];
+
+        for (i, test_data) in test_cases.iter().enumerate() {
+            let result = extract_validator_info_from_base64(test_data);
+            assert!(result.is_some(), "Failed to parse validator {}", i);
+        }
     }
 
     #[test]

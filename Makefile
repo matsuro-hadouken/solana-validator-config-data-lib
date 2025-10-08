@@ -1,45 +1,35 @@
 # Makefile for Solana Validator Config Library
 
-.PHONY: help build test example clean doc publish
+.PHONY: help build test example clean check release
 
-help: ## Show this help message
+help:
+	@echo "🚀 Solana Validator Config Library"
+	@echo "=================================="
 	@echo "Available commands:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
+	@echo "  make build    - Build the library"
+	@echo "  make test     - Run all tests"
+	@echo "  make example  - Run simple example"
+	@echo "  make check    - Run quality checks"
+	@echo "  make clean    - Clean build artifacts"
+	@echo ""
+	@echo "💡 Use ./dev.sh for more development commands"
 
-build: ## Build the library
+build:
 	cargo build
 
-test: ## Run all tests
+test:
 	cargo test
 
-example: ## Run the main example
-	cargo run --bin validator-config-example
-
-simple-example: ## Run the simple integration example
+example:
 	cargo run --example simple_usage
 
-doc: ## Generate and open documentation
-	cargo doc --open
-
-clean: ## Clean build artifacts
-	cargo clean
-
-check: ## Check code formatting and lints
+check:
 	cargo fmt --check
 	cargo clippy -- -D warnings
+	cargo test
 
-format: ## Format code
-	cargo fmt
+clean:
+	cargo clean
 
-release: ## Build in release mode
+release:
 	cargo build --release
-
-publish: check test ## Publish to crates.io (dry run)
-	cargo publish --dry-run
-
-# Development helpers
-watch: ## Watch for changes and rebuild
-	cargo watch -x build
-
-watch-test: ## Watch for changes and run tests
-	cargo watch -x test

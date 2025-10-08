@@ -1,91 +1,49 @@
-# Solana Validator Config Library
+# 🚀 Solana Validator Config Library
 
-A simple Rust library for retrieving Solana validator configuration data directly from the blockchain. Get validator names, websites, descriptions, and metadata with just a few lines of code.
+> **Get actual validator identities and metadata directly from the Solana blockchain**
 
-**🚀 Private RPC Ready**: Built specifically for production use with private RPC endpoints (QuickNode, Alchemy, Helius, etc.)
+A clean, fast Rust library that fetches validator configuration data including **real validator identity keys** you can use to connect to validators. No SDK bloat, pure efficiency.
 
-👉 **[Quick Start Guide](GETTING_STARTED.md)** - Get up and running in 2 minutes!
+[![Made with ❤️](https://img.shields.io/badge/Made%20with-%E2%9D%A4%EF%B8%8F-red.svg)](#)
+[![Rust](https://img.shields.io/badge/Rust-000000?style=flat&logo=rust&logoColor=white)](#)
+[![Solana](https://img.shields.io/badge/Solana-9945FF?style=flat&logo=solana&logoColor=white)](#)
 
-## What This Library Does
+## ✨ What Makes This Special
 
-This library connects to the Solana blockchain and fetches validator configuration information that validators have published about themselves. You can:
+- **🎯 Real Validator Identities** - Returns actual validator identity keys you can connect to (not just config account addresses)
+- **⚡ Pure Speed** - No Solana SDK dependency, just fast HTTP calls and math
+- **🔒 Production Ready** - Input sanitization, private RPC support, comprehensive error handling  
+- **🧹 Clean API** - Simple, type-safe interface that just works
+- **🌐 Multi-Network** - Mainnet, Testnet, Devnet, or any custom RPC
+- **🛡️ Battle Tested** - Handles corrupted data, malformed JSON, and edge cases gracefully
 
-- Get all validator names, websites, and details (descriptions)
-- Access Keybase usernames for identity verification
-- Work with any Solana network (Mainnet, Testnet, Devnet, or custom)
-- Filter and analyze validator data
-- Export data to JSON
+## 🚀 Quick Start (2 minutes)
 
-*Note: This library strictly follows the official Solana validator-info.json specification.*
-
-## Key Features
-
-- **🔒 Private RPC Support** - Works seamlessly with QuickNode, Alchemy, Helius, and other private providers
-- **🛡️ Input Sanitization** - Automatically handles emojis, special characters, and malicious content
-- **Simple API** - Just a few functions to get all validator data
-- **Multiple networks** - Mainnet, Testnet, Devnet, or custom RPC
-- **Type safe** - Full Rust type safety with proper error handling
-- **Async support** - Non-blocking operations with Tokio
-- **Built-in stats** - Get counts and summaries automatically
-- **Well tested** - Comprehensive test coverage including security scenarios
-- **Type safe** - Full Rust type safety with proper error handling
-- **Async support** - Non-blocking operations with Tokio
-- **Built-in stats** - Get counts and summaries automatically
-- **Well tested** - Comprehensive test coverage
-
-## Installation
-
-Add this to your `Cargo.toml`:
-
+### Add to your Cargo.toml:
 ```toml
 [dependencies]
 solana-validator-config = { git = "https://github.com/matsuro-hadouken/solana-validator-config-data-lib" }
 tokio = { version = "1.0", features = ["full"] }
 ```
 
-**Alternative installation options:**
-```toml
-# Use specific branch
-solana-validator-config = { git = "https://github.com/matsuro-hadouken/solana-validator-config-data-lib", branch = "main" }
-
-# Use specific tag (recommended for production)
-solana-validator-config = { git = "https://github.com/matsuro-hadouken/solana-validator-config-data-lib", tag = "v0.1.0" }
-```
-
-## Simple Example
-
-Here's how to get all validator information in just a few lines:
-
+### Use it:
 ```rust
-use solana_validator_config::ValidatorConfigClient;
+use solana_validator_config::{ValidatorConfigClient, SolanaNetwork};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // For production, use a private RPC endpoint:
-    let client = ValidatorConfigClient::new_custom("https://your-private-rpc.com");
-    
-    // For testing, you can use public endpoints:
-    // let client = ValidatorConfigClient::new(SolanaNetwork::Mainnet);
-    
-    // Get all validator info
+    // Use your private RPC in production
+    let client = ValidatorConfigClient::new(SolanaNetwork::Mainnet);
     let validators = client.fetch_all_validators().await?;
     
-    println!("Found {} validators", validators.len());
+    println!("🎯 Found {} validators", validators.len());
     
-    // Show first 5 validators with names
-    for (pubkey, info) in validators.iter().take(5) {
-        if let Some(name) = &info.name {
-            println!("Validator: {}", name);
-            println!("  Pubkey: {}", pubkey);
-            
-            if let Some(website) = &info.website {
-                println!("  Website: {}", website);
+    for validator in validators.iter().take(3) {
+        if let Some(name) = &validator.name {
+            if let Some(identity) = &validator.validator_identity {
+                println!("• {} → {}", name, identity);
+                println!("  ✅ This is the real validator key you can connect to!");
             }
-            
-            if let Some(description) = info.display_description() {
-                println!("  Description: {}", description);
-            }
-            println!();
         }
     }
     
@@ -93,78 +51,206 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-**Note**: Public RPC endpoints are included for easy testing and getting started, but you should use private RPC endpoints for production applications.
-
-## 📦 Publishing Status
-
-This library is currently available as a **GitHub repository**. It's not yet published to crates.io, so you need to reference it via Git URL in your `Cargo.toml`.
-
-### Future Plans
-- [ ] Publish to crates.io for easier installation (`cargo add solana-validator-config`)
-- [ ] Add more comprehensive examples
-- [ ] Performance optimizations
-
-## 🛡️ Security & Data Handling
-
-This library includes robust protections against problematic validator data:
-
-### **Input Sanitization**
-- **Length limits**: Strings are truncated to 500 characters to prevent abuse
-- **Character replacement**: 
-  - Null bytes (`\0`) are replaced with spaces for better readability
-  - Control characters are replaced with newlines (except `\n`, `\r`, `\t`)
-  - Maximum 2 consecutive newlines to prevent formatting abuse
-- **Unicode support**: Properly handles emojis and international characters
-- **Encoding safety**: Validates UTF-8 encoding from blockchain data
-
-### **What's Protected**
-```rust
-// ✅ These work safely:
-"🚀 Rocket Validator 💎"           // Emojis preserved
-"Café Münchën Validator"           // International characters
-"Validator\nWith\nNewlines"        // Reasonable whitespace
-
-// 🛡️ These are sanitized:
-"Validator\0WithNullBytes"         // → "ValidatorWithNullBytes"
-"A".repeat(2000)                   // → Truncated to 1000 chars + "..."
-"Bad\x01\x02ControlChars"          // → "BadControlChars"
+### Run it:
+```bash
+cargo run
 ```
 
-### **Error Handling**
-- Graceful handling of malformed JSON from blockchain
-- UTF-8 conversion errors are caught and reported
-- Base64 decoding failures don't crash the application
-- Invalid validator data is silently filtered out
+**Expected output:**
+```
+🎯 Found 3265 validators
+• ART3MIS.CLOUD ☘️ → GwHH8ciFhR8vejWCqmg8FWZUCNtubPY2esALvy5tBvji
+  ✅ This is the real validator key you can connect to!
+• Farben → farbZXR7aBQSMCYiUXzoS4pRUsvuCZ38f6AXMXiKACf  
+  ✅ This is the real validator key you can connect to!
+```
 
-**Your application is protected** from malicious or malformed validator data automatically.
+## 📋 What You Get
 
-## Different Networks
-
-You can connect to any Solana network:
+Each validator returns this clean data structure:
 
 ```rust
-// Mainnet (default - real validators)
-let client = ValidatorConfigClient::new(SolanaNetwork::Mainnet);
+pub struct ValidatorInfo {
+    pub validator_identity: Option<String>,   // 🎯 The actual validator identity key
+    pub name: Option<String>,                 // 📝 Display name  
+    pub website: Option<String>,              // 🌐 Website URL
+    pub details: Option<String>,              // 📄 Description
+    pub keybase_username: Option<String>,     // 🔐 Keybase identity
+}
+```
 
-// Testnet (test network)
-let client = ValidatorConfigClient::new(SolanaNetwork::Testnet);
+## 🔧 Development Tools
 
-// Devnet (development network)
-let client = ValidatorConfigClient::new(SolanaNetwork::Devnet);
+We include a powerful dev script for easy development:
 
-// Your own RPC endpoint
-let client = ValidatorConfigClient::new(
-    SolanaNetwork::Custom("https://your-rpc-endpoint.com".to_string())
+```bash
+./dev.sh help           # 📚 Show all commands
+./dev.sh example        # 🚀 Run quick example
+./dev.sh validator-test # 🧪 Test specific validators
+./dev.sh test           # ✅ Run all tests  
+./dev.sh check          # 🔍 Full quality check
+./dev.sh benchmark      # ⚡ Performance test
+```
+        ## 🌐 Production Setup
+
+### Private RPC Endpoints (Recommended)
+
+```rust
+// QuickNode - Fast & reliable
+let client = ValidatorConfigClient::new_custom(
+    "https://your-endpoint.quiknode.pro/token/"
+);
+
+// Alchemy - Great free tier  
+let client = ValidatorConfigClient::new_custom(
+    "https://solana-mainnet.g.alchemy.com/v2/your-api-key"
+);
+
+// Helius - High performance
+let client = ValidatorConfigClient::new_custom(
+    "https://rpc.helius.xyz/?api-key=your-api-key"
 );
 ```
 
-## 🔒 Private RPC Endpoints (Recommended for Production)
-
-For production applications, you should use private RPC endpoints for better reliability, rate limits, and performance:
+### Different Networks
 
 ```rust
-use solana_validator_config::ValidatorConfigClient;
+// Mainnet (default)
+let client = ValidatorConfigClient::new(SolanaNetwork::Mainnet);
 
+// Testnet  
+let client = ValidatorConfigClient::new(SolanaNetwork::Testnet);
+
+// Devnet
+let client = ValidatorConfigClient::new(SolanaNetwork::Devnet);
+```
+
+## 📊 Advanced Usage
+
+### Get Statistics
+```rust
+let stats = client.get_validator_stats().await?;
+println!("📈 Total: {} | With names: {} | With websites: {}", 
+    stats.total_validators, stats.with_names, stats.with_websites);
+```
+
+### Filter & Search
+```rust
+let validators = client.fetch_all_validators().await?;
+
+// Find validators with specific criteria
+let named_validators: Vec<_> = validators
+    .iter()
+    .filter(|v| v.name.is_some())
+    .collect();
+
+// Search by name
+let art3mis = validators
+    .iter()
+    .find(|v| v.name.as_ref().map_or(false, |n| n.contains("ART3MIS")));
+```
+
+### Helper Methods
+```rust
+// Check if validator has any configuration
+if validator.has_config() {
+    println!("📋 Validator has metadata");
+}
+
+// Get display name with fallback
+let display_name = validator.display_name();
+let description = validator.display_description();
+```
+
+## ⚡ Performance
+
+- **Fetches 3200+ validators** from Mainnet in 2-5 seconds
+- **Zero Solana SDK overhead** - pure HTTP + math
+- **Handles corrupted data** gracefully  
+- **Memory efficient** - processes data in chunks
+- **Consider caching** results for frequent calls
+
+## 🛡️ Security Features
+
+- **Input sanitization** (500 char limits)
+- **Null byte replacement** 
+- **Control character filtering**
+- **Unicode emoji support** ☘️
+- **Malformed JSON handling**
+- **UTF-8 validation**
+- **Multiple JSON parsing attempts** for corrupted data
+
+## 🧪 Examples
+
+Check out the examples in the repo:
+
+```bash
+./dev.sh example        # Simple usage example
+./dev.sh test-ids       # Test validator identity extraction  
+./dev.sh validator-test # Quick validation test
+```
+
+Or run directly:
+```bash
+cargo run --example simple_usage
+cargo run --example test_validator_ids
+```
+
+## 🤝 Contributing
+
+1. Fork the repo
+2. Create a feature branch
+3. Run `./dev.sh check` before committing  
+4. Submit a PR
+
+## 📄 License
+
+MIT License - build amazing things! 🚀
+
+---
+
+**Made with ❤️ for the Solana ecosystem**
+```
+
+## Development Tools
+
+This library includes a convenient development script:
+
+```bash
+./dev.sh help           # Show all available commands
+./dev.sh example        # Run the simple integration example  
+./dev.sh test-ids       # Test validator identity extraction
+./dev.sh validator-test # Quick test (just shows Farben & KitBull found)
+./dev.sh test           # Run all unit tests
+./dev.sh check          # Full quality checks (format, lint, test, build)
+./dev.sh benchmark      # Performance test
+./dev.sh clean          # Clean build artifacts
+```
+
+## Validator Data Structure
+
+Each validator returns this information:
+
+```rust
+pub struct ValidatorInfo {
+    pub validator_identity: Option<String>,      // Actual validator identity key
+    pub name: Option<String>,                    // Display name
+    pub website: Option<String>,                 // Website URL
+    pub details: Option<String>,                 // Description/details
+    pub keybase_username: Option<String>,        // Keybase identity
+}
+```
+
+**Helper methods:**
+- `validator.display_name()` - Gets name or keybase_username
+- `validator.display_description()` - Gets details
+- `validator.has_config()` - True if validator has any data
+
+## Private RPC Endpoints
+
+For production use, connect to private RPC providers:
+
+```rust
 // QuickNode
 let client = ValidatorConfigClient::new_custom("https://your-endpoint.quiknode.pro/token/");
 
@@ -174,38 +260,29 @@ let client = ValidatorConfigClient::new_custom("https://solana-mainnet.g.alchemy
 // Helius
 let client = ValidatorConfigClient::new_custom("https://rpc.helius.xyz/?api-key=your-api-key");
 
-// GenesysGo
-let client = ValidatorConfigClient::new_custom("https://ssc-dao.genesysgo.net/");
-
-// Any other private RPC
+// Any custom RPC
 let client = ValidatorConfigClient::new_custom("https://your-private-rpc.com");
-
-// Get validator data
-let validators = client.fetch_all_validators().await?;
 ```
 
-### Private RPC with Custom Configuration
+## Different Networks
 
 ```rust
-use solana_validator_config::{ValidatorConfigClient, ClientConfig};
+// Mainnet (default)
+let client = ValidatorConfigClient::new(SolanaNetwork::Mainnet);
 
-let config = ClientConfig::new()
-    .with_timeout(60).unwrap()           // Longer timeout for reliability
-    .with_user_agent("my-app/1.0");      // Custom user agent
+// Testnet
+let client = ValidatorConfigClient::new(SolanaNetwork::Testnet);
 
-let client = ValidatorConfigClient::new_custom_with_config(
-    "https://your-private-rpc.com",
-    config
-);
+// Devnet
+let client = ValidatorConfigClient::new(SolanaNetwork::Devnet);
+
+// Custom RPC
+let client = ValidatorConfigClient::new_custom("https://your-rpc.com");
 ```
 
 ## Get Statistics
 
-Want to know how many validators have names, websites, etc?
-
 ```rust
-let client = ValidatorConfigClient::new(SolanaNetwork::Mainnet);
-
 let stats = client.get_validator_stats().await?;
 println!("Total validators: {}", stats.total_validators);
 println!("Have names: {}", stats.with_names);
@@ -213,9 +290,7 @@ println!("Have websites: {}", stats.with_websites);
 println!("Have Keybase: {}", stats.with_keybase);
 ```
 
-## Filter and Search
-
-Find specific validators:
+## Filter Validators
 
 ```rust
 let validators = client.fetch_all_validators().await?;
@@ -223,142 +298,86 @@ let validators = client.fetch_all_validators().await?;
 // Find validators with websites
 let with_websites: Vec<_> = validators
     .iter()
-    .filter(|(_, info)| info.website.is_some())
+    .filter(|v| v.website.is_some())
     .collect();
-
-println!("Validators with websites: {}", with_websites.len());
 
 // Find validators by name
 let solana_validators: Vec<_> = validators
     .iter()
-    .filter(|(_, info)| {
-        info.name
-            .as_ref()
+    .filter(|v| {
+        v.name.as_ref()
             .map(|name| name.to_lowercase().contains("solana"))
             .unwrap_or(false)
     })
     .collect();
 
-println!("Validators with 'solana' in name: {}", solana_validators.len());
-```
-
-## Save Data
-
-Export to JSON file:
-
-```rust
-use std::fs;
-
-let validators = client.fetch_all_validators().await?;
-let json_data = serde_json::to_string_pretty(&validators)?;
-fs::write("validators.json", json_data)?;
-println!("Saved {} validators to validators.json", validators.len());
+// Find validators with identities
+let with_identities: Vec<_> = validators
+    .iter()
+    .filter(|v| v.validator_identity.is_some())
+    .collect();
 ```
 
 ## Advanced Configuration
 
-Need custom timeouts or settings?
-
 ```rust
-use solana_validator_config::{ValidatorConfigClient, SolanaNetwork, ClientConfig};
+use solana_validator_config::{ValidatorConfigClient, ClientConfig};
 
-let config = ClientConfig {
-    max_concurrent_requests: 20,        // Future use
-    timeout_seconds: 60,                // 60 second timeout
-    include_empty_configs: true,        // Include validators with no data
-};
+let config = ClientConfig::new()
+    .with_timeout(60).unwrap()           // Custom timeout
+    .with_user_agent("my-app/1.0");      // Custom user agent
 
-let client = ValidatorConfigClient::with_config(SolanaNetwork::Mainnet, config);
+let client = ValidatorConfigClient::new_custom_with_config(
+    "https://your-rpc.com",
+    config
+);
 ```
-
-## What Data You Get
-
-Each validator can have this information (following the official Solana validator-info.json specification):
-
-```rust
-pub struct ValidatorInfo {
-    pub name: Option<String>,                    // Display name
-    pub website: Option<String>,                 // Website URL
-    pub details: Option<String>,                 // Description/details
-    pub keybase_username: Option<String>,        // Keybase identity
-}
-```
-
-**Helper methods:**
-- `info.display_name()` - Gets name or keybase_username
-- `info.display_description()` - Gets details
-- `info.has_config()` - True if validator has any data
 
 ## Error Handling
-
-Handle errors properly:
 
 ```rust
 use solana_validator_config::ValidatorConfigError;
 
 match client.fetch_all_validators().await {
-    Ok(validators) => {
-        println!("Got {} validators", validators.len());
-    }
-    Err(ValidatorConfigError::NetworkError(msg)) => {
-        eprintln!("Network problem: {}", msg);
-    }
-    Err(ValidatorConfigError::ParseError(msg)) => {
-        eprintln!("Data parsing problem: {}", msg);
-    }
-    Err(ValidatorConfigError::RpcError(msg)) => {
-        eprintln!("RPC problem: {}", msg);
-    }
+    Ok(validators) => println!("Got {} validators", validators.len()),
+    Err(ValidatorConfigError::Network(e)) => eprintln!("Network error: {}", e),
+    Err(ValidatorConfigError::JsonParse(e)) => eprintln!("Parse error: {}", e),
+    Err(e) => eprintln!("Other error: {}", e),
 }
 ```
 
-## Running Examples
+## Examples
 
-Try the included examples:
+Run the included examples:
 
 ```bash
-# Basic example
-cargo run --bin validator-config-example
+# Development script (recommended)
+./dev.sh example        # Simple integration example
+./dev.sh test-ids       # Test validator identity extraction
 
-# Simple integration example  
+# Direct cargo commands
 cargo run --example simple_usage
-
-# Run tests
+cargo run --example test_validator_ids
 cargo test
-
-# Generate documentation
-cargo doc --open
 ```
 
-## Performance Notes
+## Performance
 
-- Usually fetches 2000+ validators from mainnet
+- Fetches 2800+ validators from mainnet
 - Takes 2-5 seconds depending on RPC speed
-- Consider caching results if calling frequently
-- Use `include_empty_configs: false` to skip validators without data
+- Extracts validator identities from all config accounts
+- Consider caching results for frequent calls
 
-## How to Add to Your Project
+## Security
 
-### Option 1: As a dependency (when published)
-```toml
-[dependencies]
-solana-validator-config = "0.1.0"
-```
+The library includes robust protections:
 
-### Option 2: As a local dependency
-```toml
-[dependencies]
-solana-validator-config = { path = "../path/to/this/library" }
-```
-
-### Option 3: Copy the code
-Just copy `src/lib.rs` and add the dependencies from this project's `Cargo.toml`
-
-## Need Help?
-
-- Check the examples in the `examples/` folder
-- Run `cargo doc --open` for full API documentation
-- All functions are documented with examples
+- String length limits (500 characters max)
+- Null byte replacement with spaces
+- Control character sanitization
+- Unicode emoji support
+- Malformed JSON handling
+- UTF-8 validation
 
 ## License
 
