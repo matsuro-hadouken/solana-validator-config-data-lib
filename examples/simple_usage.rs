@@ -21,7 +21,7 @@ struct MyValidatorData {
 impl From<ValidatorInfo> for MyValidatorData {
     fn from(info: ValidatorInfo) -> Self {
         let name = info.display_name().unwrap_or("Unknown").to_string();
-        let description = info.display_description().map(|s| s.to_string());
+        let description = info.display_description().map(std::string::ToString::to_string);
         let verified = info.keybase_username.is_some();
 
         Self {
@@ -68,14 +68,14 @@ async fn process_validators_for_my_app() -> Result<(), Box<dyn std::error::Error
     if let Some(validator) = by_name.get("Solana Foundation") {
         println!("Found Solana Foundation validator:");
         if let Some(identity) = &validator.validator_identity {
-            println!("  Validator Identity: {}", identity);
+            println!("  Validator Identity: {identity}");
         }
         println!("  Name: {}", validator.name);
         if let Some(website) = &validator.website {
-            println!("  Website: {}", website);
+            println!("  Website: {website}");
         }
         if let Some(description) = &validator.description {
-            println!("  Description: {}", description);
+            println!("  Description: {description}");
         }
         println!("  Verified: {}", validator.verified);
     }
@@ -118,7 +118,7 @@ impl ValidatorCache {
     fn new() -> Self {
         Self {
             data: Vec::new(),
-            last_updated: Instant::now() - Duration::from_secs(3600), // Force initial fetch
+            last_updated: Instant::now().checked_sub(Duration::from_secs(3600)).unwrap(), // Force initial fetch
             cache_duration: Duration::from_secs(300),                 // 5 minutes
         }
     }

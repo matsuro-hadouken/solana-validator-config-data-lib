@@ -1,1 +1,28 @@
+# Rust build artifacts
 /target
+**/*.rs.bk
+
+# Cargo.lock should be committed for libraries but here for clarity
+# (keeping it since it exists and ensures reproducible builds for testing)
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+
+# Test artifacts
+tests/temp/
+*.tmp

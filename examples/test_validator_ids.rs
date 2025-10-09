@@ -20,11 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- Testing specified validators ---");
     for known in &known_validators {
         if let Some(info) = configs.iter().find(|info| {
-            if let Some(identity) = &info.validator_identity {
-                identity == known
-            } else {
-                false
-            }
+            info.validator_identity.as_ref().is_some_and(|identity| identity == known)
         }) {
             println!(
                 "[OK] Found {}: {}",
@@ -32,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info.display_name().unwrap_or("No name")
             );
         } else {
-            println!("[MISS] Not found: {} (may not have published config or be inactive)", known);
+            println!("[MISS] Not found: {known} (may not have published config or be inactive)");
         }
     }
 

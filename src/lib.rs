@@ -874,7 +874,7 @@ mod tests {
 
         let result: Result<ValidatorInfo, _> = serde_json::from_str(json_with_emojis);
         if let Err(e) = &result {
-            println!("Error parsing JSON: {}", e);
+            println!("Error parsing JSON: {e}");
         }
         assert!(result.is_ok());
         let info = result.unwrap();
@@ -886,18 +886,17 @@ mod tests {
         let json_with_long_content = format!(
             r#"
         {{
-            "name": "{}",
+            "name": "{long_name}",
             "website": "https://test.com",
             "details": "Normal details",
             "keybaseUsername": null
         }}
         "#,
-            long_name
         );
 
         let result: Result<ValidatorInfo, _> = serde_json::from_str(&json_with_long_content);
         if let Err(e) = &result {
-            println!("Error parsing long content JSON: {}", e);
+            println!("Error parsing long content JSON: {e}");
         }
         assert!(result.is_ok());
         let info = result.unwrap();
@@ -973,7 +972,7 @@ mod tests {
     #[test]
     fn test_validator_identity_extraction_multiple() {
         // Test with multiple different validator configs to ensure consistency
-        let test_cases = vec![
+        let test_cases = [
             // First validator
             "AgdRlwF0SPKsXcI8nrx6x4wKJyV6xhRFjeCk8W+AAAAAAFyWoNoPcmY3XGMzfd/TnsxGdmGkbaqPjoM5N67GtS8/AUMAAAAAAAAAeyJkZXRhaWxzIjoiR0VOQSIsIm5hbWUiOiJHRU5BIiwid2Vic2l0ZSI6Imh0dHBzOi8vYml0Lmx5LzNxSnR2TXMifQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             // Second validator
@@ -982,7 +981,7 @@ mod tests {
 
         for (i, test_data) in test_cases.iter().enumerate() {
             let result = extract_validator_info_from_base64(test_data);
-            assert!(result.is_some(), "Failed to parse validator {}", i);
+            assert!(result.is_some(), "Failed to parse validator {i}");
         }
     }
 
