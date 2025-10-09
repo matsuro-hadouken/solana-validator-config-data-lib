@@ -4,20 +4,20 @@ use solana_validator_config::{SolanaNetwork, ValidatorConfigClient};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Testing Validator Identity Extraction ===");
+    println!("=== Validator Identity Extraction Test ===");
 
     let client = ValidatorConfigClient::new(SolanaNetwork::Mainnet);
     let configs = client.fetch_all_validators().await?;
 
     println!("Total validators found: {}", configs.len());
 
-    // Look for some known validators
+    // Test known validators
     let known_validators = [
-        "GwHH8ciFhR8vejWCqmg8FWZUCNtubPY2esALvy5tBvji", // Your specified test validator  
-        "farbZXR7aBQSMCYiUXzoS4pRUsvuCZ38f6AXMXiKACf", // Farben (known active validator)
+        "GwHH8ciFhR8vejWCqmg8FWZUCNtubPY2esALvy5tBvji", // Test validator  
+        "farbZXR7aBQSMCYiUXzoS4pRUsvuCZ38f6AXMXiKACf", // Farben
     ];
 
-    println!("\n--- Looking for specified test validators ---");
+    println!("\n--- Testing specified validators ---");
     for known in &known_validators {
         if let Some(info) = configs.iter().find(|info| {
             if let Some(identity) = &info.validator_identity {
@@ -27,12 +27,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }) {
             println!(
-                "✅ Found {}: {}",
+                "[OK] Found {}: {}",
                 known,
                 info.display_name().unwrap_or("No name")
             );
         } else {
-            println!("❌ Not found: {} (may not have published config or be inactive)", known);
+            println!("[MISS] Not found: {} (may not have published config or be inactive)", known);
         }
     }
 
@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .count();
 
     println!(
-        "\n✅ Extracted validator identities for {} out of {} validators!",
+        "\n[OK] Extracted validator identities for {} out of {} validators",
         total_with_identities,
         configs.len()
     );
@@ -68,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .filter_map(|info| info.validator_identity.as_ref())
         .filter(|pk| {
-            // Base58 encoded 32-byte keys can be 43-44 chars (leading zeros compressed)
+            // Base58 encoded 32-byte keys can be 43-44 chars
             pk.len() < 43
                 || pk.len() > 44
                 || !pk.chars().all(|c| {
@@ -78,10 +78,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     if invalid_keys.is_empty() {
-        println!("✅ All extracted validator identities are properly formatted!");
+        println!("[OK] All extracted validator identities are properly formatted");
     } else {
         println!(
-            "❌ Found {} invalid validator identities:",
+            "[ERROR] Found {} invalid validator identities:",
             invalid_keys.len()
         );
         for key in invalid_keys.iter().take(5) {

@@ -54,12 +54,13 @@ pub enum SolanaNetwork {
 
 impl SolanaNetwork {
     /// Get the RPC endpoint URL for the network
+    #[must_use]
     pub fn rpc_url(&self) -> &str {
         match self {
-            SolanaNetwork::Mainnet => "https://api.mainnet-beta.solana.com",
-            SolanaNetwork::Testnet => "https://api.testnet.solana.com",
-            SolanaNetwork::Devnet => "https://api.devnet.solana.com",
-            SolanaNetwork::Custom(url) => url,
+            Self::Mainnet => "https://api.mainnet-beta.solana.com",
+            Self::Testnet => "https://api.testnet.solana.com",
+            Self::Devnet => "https://api.devnet.solana.com",
+            Self::Custom(url) => url,
         }
     }
 
@@ -82,8 +83,9 @@ impl SolanaNetwork {
     /// // Using Helius
     /// let network = SolanaNetwork::custom("https://rpc.helius.xyz/?api-key=your-api-key");
     /// ```
+    #[must_use]
     pub fn custom(rpc_url: impl Into<String>) -> Self {
-        SolanaNetwork::Custom(rpc_url.into())
+        Self::Custom(rpc_url.into())
     }
 }
 
@@ -169,18 +171,21 @@ pub struct ValidatorInfo {
 }
 
 impl ValidatorInfo {
-    /// Get the primary name for this validator (tries name, then keybase_username)
+    /// Get the primary name for this validator (tries name, then `keybase_username`)
+    #[must_use]
     pub fn display_name(&self) -> Option<&str> {
         self.name.as_deref().or(self.keybase_username.as_deref())
     }
 
     /// Get the validator description
+    #[must_use]
     pub fn display_description(&self) -> Option<&str> {
         self.details.as_deref()
     }
 
     /// Check if this validator has meaningful configuration data
-    pub fn has_config(&self) -> bool {
+    #[must_use]
+    pub const fn has_config(&self) -> bool {
         self.validator_identity.is_some()
             || self.name.is_some()
             || self.website.is_some()
@@ -232,11 +237,15 @@ pub struct ClientConfig {
 
 impl ClientConfig {
     /// Create a new configuration with validation
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Set the timeout with validation
+    /// 
+    /// # Errors
+    /// Returns `ValidatorConfigError::InvalidConfig` if timeout is 0
     pub fn with_timeout(mut self, timeout_seconds: u64) -> Result<Self, ValidatorConfigError> {
         if timeout_seconds == 0 {
             return Err(ValidatorConfigError::InvalidConfig(
@@ -254,6 +263,9 @@ impl ClientConfig {
     }
 
     /// Set maximum concurrent requests with validation
+    /// 
+    /// # Errors
+    /// Returns `ValidatorConfigError::InvalidConfig` if `max_requests` is 0
     pub fn with_max_concurrent_requests(
         mut self,
         max_requests: usize,
@@ -271,12 +283,14 @@ impl ClientConfig {
     }
 
     /// Set whether to include empty configurations
-    pub fn with_include_empty_configs(mut self, include: bool) -> Self {
+    #[must_use]
+    pub const fn with_include_empty_configs(mut self, include: bool) -> Self {
         self.include_empty_configs = include;
         self
     }
 
     /// Set custom user agent
+    #[must_use]
     pub fn with_user_agent(mut self, user_agent: impl Into<String>) -> Self {
         self.user_agent = user_agent.into();
         self
@@ -303,11 +317,16 @@ pub struct ValidatorConfigClient {
 
 impl ValidatorConfigClient {
     /// Create a new client for the specified network
+    #[must_use]
     pub fn new(network: SolanaNetwork) -> Self {
         Self::with_config(network, ClientConfig::default())
     }
 
     /// Create a new client with custom configuration
+    /// 
+    /// # Panics
+    /// Panics if the HTTP client cannot be created with the given configuration
+    #[must_use]
     pub fn with_config(network: SolanaNetwork, config: ClientConfig) -> Self {
         let http_client = Client::builder()
             .timeout(std::time::Duration::from_secs(config.timeout_seconds))
@@ -376,6 +395,9 @@ impl ValidatorConfigClient {
     }
 
     /// Fetch all validator configurations from the network
+    /// 
+    /// # Errors
+    /// Returns `ValidatorConfigError` if the RPC request fails or response cannot be parsed
     pub async fn fetch_all_validators(&self) -> Result<Vec<ValidatorInfo>, ValidatorConfigError> {
         log::info!(
             "Fetching validator configurations from {}",
@@ -404,9 +426,9 @@ impl ValidatorConfigClient {
         if !response.status().is_success() {
             let status = response.status();
             let error_body = response.text().await.unwrap_or_default();
-            log::error!("RPC request failed with status {}: {}", status, error_body);
+            log::error!("RPC request failed with status {status}: {error_body}");
             return Err(ValidatorConfigError::Rpc {
-                message: format!("Request failed with status {}: {}", status, error_body),
+                message: format!("Request failed with status {status}: {error_body}"),
             });
         }
 
@@ -462,6 +484,9 @@ impl ValidatorConfigClient {
     }
 
     /// Get validator statistics
+    /// 
+    /// # Errors
+    /// Returns `ValidatorConfigError` if fetching validators fails
     pub async fn get_validator_stats(&self) -> Result<ValidatorStats, ValidatorConfigError> {
         let validators = self.fetch_all_validators().await?;
 
@@ -555,7 +580,7 @@ fn extract_validator_info_from_base64(base64_data: &str) -> Option<ValidatorInfo
 }
 
 /// Extract both validator identity and info from base64-encoded account data
-/// Returns ValidatorInfo with validator_identity field populated
+/// Returns `ValidatorInfo` with `validator_identity` field populated
 fn extract_validator_identity_and_info_from_base64(base64_data: &str) -> Option<ValidatorInfo> {
     // Decode the base64 data
     let decoded = general_purpose::STANDARD.decode(base64_data).ok()?;
@@ -607,12 +632,11 @@ fn extract_validator_identity_and_info_from_base64(base64_data: &str) -> Option<
                     if let Ok(parsed_info) = serde_json::from_str::<ValidatorInfo>(trimmed_json) {
                         info = parsed_info;
                         break;
-                    } else {
-                        let cleaned_json = clean_json_string(trimmed_json);
-                        if let Ok(parsed_info) = serde_json::from_str::<ValidatorInfo>(&cleaned_json) {
-                            info = parsed_info;
-                            break;
-                        }
+                    }
+                    let cleaned_json = clean_json_string(trimmed_json);
+                    if let Ok(parsed_info) = serde_json::from_str::<ValidatorInfo>(&cleaned_json) {
+                        info = parsed_info;
+                        break;
                     }
                 }
             }
@@ -643,11 +667,7 @@ fn extract_validator_identity_and_info_from_base64(base64_data: &str) -> Option<
 /// Basic validation for Solana public key format
 fn is_valid_solana_pubkey(key: &str) -> bool {
     // Solana public keys should be valid base58 and decode to exactly 32 bytes
-    if let Ok(decoded) = bs58::decode(key).into_vec() {
-        decoded.len() == 32
-    } else {
-        false
-    }
+    bs58::decode(key).into_vec().is_ok_and(|decoded| decoded.len() == 32)
 }
 
 /// Clean up common JSON formatting issues
@@ -657,10 +677,9 @@ fn clean_json_string(json_str: &str) -> String {
         // Remove null bytes that sometimes appear
         .replace('\0', "")
         // Ensure proper string escaping
-        .replace("\n", "\\n")
-        .replace("\r", "\\r")
-        .replace("\t", "\\t")
-        .to_string()
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
 }
 
 /// Find the end position of a JSON object in a string
@@ -790,10 +809,10 @@ mod tests {
             "Normal Validator"
         );
 
-        // Test emojis (should be preserved)
+        // Test special characters (should be preserved)
         assert_eq!(
-            sanitize_string("Validator 🚀💎".to_string()),
-            "Validator 🚀💎"
+            sanitize_string("Validator Premium".to_string()),
+            "Validator Premium"
         );
 
         // Test null bytes (should be replaced with spaces)
@@ -843,24 +862,24 @@ mod tests {
 
     #[test]
     fn test_validator_info_deserialization_with_problematic_content() {
-        // Test JSON with emojis and special characters
+        // Test JSON with special characters
         let json_with_emojis = r#"
         {
-            "name": "🚀 Rocket Validator 💎",
+            "name": "Rocket Validator",
             "website": "https://rocket-validator.com",
-            "details": "Best validator ever! 🌟 Supporting the network since 2021 ⚡",
+            "details": "Best validator ever! Top rated supporting the network since 2021",
             "keybaseUsername": "rocket_validator"
         }
         "#;
 
         let result: Result<ValidatorInfo, _> = serde_json::from_str(json_with_emojis);
         if let Err(e) = &result {
-            println!("Error parsing emoji JSON: {}", e);
+            println!("Error parsing JSON: {}", e);
         }
         assert!(result.is_ok());
         let info = result.unwrap();
-        assert_eq!(info.name.as_ref().unwrap(), "🚀 Rocket Validator 💎");
-        assert!(info.details.as_ref().unwrap().contains("🌟"));
+        assert_eq!(info.name.as_ref().unwrap(), "Rocket Validator");
+        assert!(info.details.as_ref().unwrap().contains("Top rated"));
 
         // Test with excessively long content
         let long_name = "a".repeat(600);

@@ -3,16 +3,16 @@
 .PHONY: help build test example clean check release
 
 help:
-	@echo "🚀 Solana Validator Config Library"
+	@echo "Solana Validator Config Library"
 	@echo "=================================="
 	@echo "Available commands:"
 	@echo "  make build    - Build the library"
-	@echo "  make test     - Run all tests"
-	@echo "  make example  - Run simple example"
+	@echo "  make test     - Run tests"
+	@echo "  make example  - Run example"
 	@echo "  make check    - Run quality checks"
 	@echo "  make clean    - Clean build artifacts"
 	@echo ""
-	@echo "💡 Use ./dev.sh for more development commands"
+	@echo "Use ./dev.sh for development commands"
 
 build:
 	cargo build
