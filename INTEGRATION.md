@@ -5,7 +5,7 @@ Production patterns for serious applications.
 ## Essential Setup
 
 ```rust
-use solana_validator_config::{ValidatorConfigClient, SolanaNetwork, ClientConfig};
+use solana_validator_config::{ValidatorConfigClient, ValidatorInfo, SolanaNetwork, ClientConfig};
 
 // Production client with private RPC
 let client = ValidatorConfigClient::new_custom("https://your-private-rpc.com");
@@ -27,7 +27,7 @@ use tokio::time::{sleep, Duration};
 async fn fetch_with_retry(
     client: &ValidatorConfigClient,
     max_retries: u32,
-) -> Result<Vec<(String, ValidatorInfo)>, ValidatorConfigError> {
+) -> Result<Vec<ValidatorInfo>, ValidatorConfigError> {
     let mut last_error = None;
 
     for attempt in 0..=max_retries {
@@ -54,7 +54,7 @@ use std::time::{Duration, Instant};
 use std::collections::HashMap;
 
 pub struct ValidatorCache {
-    data: Option<Vec<(String, ValidatorInfo)>>,
+    data: Option<Vec<ValidatorInfo>>,
     last_update: Option<Instant>,
     ttl: Duration,
 }
@@ -71,7 +71,7 @@ impl ValidatorCache {
     pub async fn get_validators(
         &mut self,
         client: &ValidatorConfigClient
-    ) -> Result<&[(String, ValidatorInfo)], Box<dyn std::error::Error>> {
+    ) -> Result<&[ValidatorInfo], Box<dyn std::error::Error>> {
         if self.is_stale() {
             self.data = Some(client.fetch_all_validators().await?);
             self.last_update = Some(Instant::now());
@@ -128,8 +128,10 @@ impl MultiNetworkClient {
             let validators = client.fetch_all_validators().await?;
             let validator = validators
                 .iter()
-                .find(|(pubkey, _)| pubkey == identity)
-                .map(|(_, info)| info.clone());
+                .find(|validator| {
+                    validator.validator_identity.as_ref() == Some(&identity.to_string())
+                })
+                .cloned();
             
             results.insert(network.clone(), validator);
         }
@@ -176,7 +178,7 @@ impl RateLimitedClient {
         }
     }
 
-    pub async fn fetch_validators(&self) -> Result<Vec<(String, ValidatorInfo)>, Box<dyn std::error::Error>> {
+    pub async fn fetch_validators(&self) -> Result<Vec<ValidatorInfo>, Box<dyn std::error::Error>> {
         let _permit = self.semaphore.acquire().await?;
         self.client.fetch_all_validators().await.map_err(Into::into)
     }
@@ -192,23 +194,23 @@ use std::time::Instant;
 pub struct Metrics {
     pub fetch_duration: Duration,
     pub total_validators: usize,
-    pub with_identities: usize,
+    pub with_names: usize,
 }
 
 pub async fn fetch_with_metrics(
     client: &ValidatorConfigClient
-) -> Result<(Vec<(String, ValidatorInfo)>, Metrics), Box<dyn std::error::Error>> {
+) -> Result<(Vec<ValidatorInfo>, Metrics), Box<dyn std::error::Error>> {
     let start = Instant::now();
     
     let validators = client.fetch_all_validators().await?;
     let fetch_duration = start.elapsed();
 
-    let with_identities = validators.len();
+    let with_names = validators.iter().filter(|v| v.name.is_some()).count();
     
     let metrics = Metrics {
         fetch_duration,
         total_validators: validators.len(),
-        with_identities,
+        with_names,
     };
     
     Ok((validators, metrics))
@@ -217,40 +219,22 @@ pub async fn fetch_with_metrics(
 
 ## Production Checklist
 
-- [ ] Use private RPC endpoints
-- [ ] Implement error handling and retries
-- [ ] Add caching for frequent calls
+- [ ] Use private RPC endpoints for better reliability
+- [ ] Implement comprehensive error handling with retries
+- [ ] Add caching for frequent calls to reduce RPC usage
 - [ ] Monitor RPC usage and costs
-- [ ] Set up logging and metrics
-- [ ] Validate all user inputs
-- [ ] Rate limit API calls if exposing publicly
-- [ ] Sanitize output before displaying
+- [ ] Set up logging and metrics collection
+- [ ] Validate all user inputs before processing
+- [ ] Rate limit API calls if exposing service publicly
 - [ ] Keep RPC endpoints in environment variables
+- [ ] Use proper timeout configurations
 
 ## Security Considerations
 
-- [ ] Validate all user inputs before filtering
-- [ ] Rate limit API calls if exposing publicly
-- [ ] Sanitize output before displaying to users
-- [ ] Keep RPC endpoints in environment variables
-
-## Docker Configuration
-
-```dockerfile
-FROM rust:1.70 as builder
-WORKDIR /app
-COPY . .
-RUN cargo build --release
-
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/your-app /usr/local/bin/your-app
-
-ENV SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
-ENV RUST_LOG=info
-
-CMD ["your-app"]
-```
+- [ ] Validate all user inputs before filtering operations
+- [ ] Rate limit API calls if exposing service publicly
+- [ ] Keep RPC endpoints and credentials in environment variables
+- [ ] Implement proper access controls for production deployments
 
 ## Health Checks
 
@@ -310,6 +294,13 @@ mod tests {
         let validators2 = cache.get_validators(&client).await.unwrap();
         
         assert_eq!(validators1.len(), validators2.len());
+    }
+    
+    #[tokio::test]
+    async fn test_validator_stats() {
+        let client = ValidatorConfigClient::new(SolanaNetwork::Mainnet);
+        let stats = client.get_validator_stats().await.unwrap();
+        assert!(stats.total_validators > 0);
     }
 }
 ```

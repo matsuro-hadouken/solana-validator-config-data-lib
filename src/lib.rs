@@ -213,13 +213,69 @@ pub enum ValidatorConfigError {
     #[error("Invalid UTF-8 data: {0}")]
     Utf8(#[from] std::str::Utf8Error),
 
-    /// RPC-specific errors
-    #[error("RPC error: {message}")]
-    Rpc { message: String },
+    /// Rate limit exceeded (HTTP 429) - temporary error, should retry with backoff
+    #[error("Rate limit exceeded: {message}")]
+    RateLimitExceeded { 
+        message: String,
+        retry_after: Option<u64>, // seconds to wait before retrying
+    },
+
+    /// RPC-specific errors from Solana JSON-RPC responses
+    #[error("RPC error (code {code}): {message}")]
+    RpcError { 
+        code: i32,
+        message: String,
+    },
+
+    /// HTTP errors (non-429 status codes)
+    #[error("HTTP error {status}: {message}")]
+    HttpError {
+        status: u16,
+        message: String,
+    },
 
     /// Configuration validation errors
     #[error("Invalid configuration: {0}")]
     InvalidConfig(String),
+}
+
+impl ValidatorConfigError {
+    /// Returns true if this error indicates a temporary condition that might succeed on retry
+    #[must_use]
+    pub const fn is_retryable(&self) -> bool {
+        match self {
+            Self::RateLimitExceeded { .. } | Self::Network(_) => true, // Temporary errors
+            Self::HttpError { status, .. } => {
+                // Some HTTP errors are retryable
+                matches!(*status, 500..=599 | 408 | 429)
+            }
+            Self::RpcError { code, .. } => {
+                // Some RPC errors might be temporary (e.g., server overload)
+                matches!(*code, -32099..=-32000) // Solana server error range (fixed range)
+            }
+            _ => false, // Parsing, config, UTF-8 errors are permanent
+        }
+    }
+
+    /// Returns suggested retry delay in seconds for retryable errors
+    #[must_use]
+    pub fn retry_delay(&self) -> Option<u64> {
+        match self {
+            Self::RateLimitExceeded { retry_after, .. } => {
+                retry_after.or(Some(60)) // Default to 60s if no retry-after header
+            }
+            Self::Network(_) => Some(5), // Short delay for network errors
+            Self::HttpError { status, .. } if self.is_retryable() => {
+                match *status {
+                    500..=599 => Some(10), // Server errors
+                    408 => Some(5),        // Request timeout
+                    _ => Some(30),
+                }
+            }
+            Self::RpcError { .. } if self.is_retryable() => Some(10),
+            _ => None,
+        }
+    }
 }
 
 /// Configuration options for the validator config client
@@ -425,25 +481,56 @@ impl ValidatorConfigClient {
 
         if !response.status().is_success() {
             let status = response.status();
+            
+            // Extract retry-after header before consuming response
+            let retry_after = response.headers()
+                .get("retry-after")
+                .and_then(|h| h.to_str().ok())
+                .and_then(|s| s.parse().ok());
+            
             let error_body = response.text().await.unwrap_or_default();
             log::error!("RPC request failed with status {status}: {error_body}");
-            return Err(ValidatorConfigError::Rpc {
+            
+            if status.as_u16() == 429 {
+                return Err(ValidatorConfigError::RateLimitExceeded {
+                    message: format!("Request failed with status 429 Too Many Requests: {error_body}"),
+                    retry_after,
+                });
+            }
+            
+            return Err(ValidatorConfigError::HttpError {
+                status: status.as_u16(),
                 message: format!("Request failed with status {status}: {error_body}"),
             });
         }
 
         let rpc_response: RpcResponse = response.json().await?;
 
+        // Check for JSON-RPC errors in successful HTTP responses
+        if let Some(error) = &rpc_response.error {
+            return Err(ValidatorConfigError::RpcError {
+                code: error.code,
+                message: error.message.clone(),
+            });
+        }
+
+        let result = rpc_response.result.ok_or_else(|| {
+            ValidatorConfigError::RpcError {
+                code: -1,
+                message: "Missing result field in RPC response".to_string(),
+            }
+        })?;
+
         log::info!(
             "Received {} config accounts from RPC",
-            rpc_response.result.len()
+            result.len()
         );
 
-        let total_accounts = rpc_response.result.len();
+        let total_accounts = result.len();
         let mut validators = Vec::with_capacity(total_accounts);
         let mut parse_errors = 0;
 
-        for (index, entry) in rpc_response.result.into_iter().enumerate() {
+        for (index, entry) in result.into_iter().enumerate() {
             // Try to extract validator identity and info with identity included in struct
             if let Some(info) =
                 extract_validator_identity_and_info_from_base64(&entry.account.data.0)
@@ -522,7 +609,14 @@ pub struct ValidatorStats {
 // Internal structs for RPC communication
 #[derive(Debug, Deserialize)]
 struct RpcResponse {
-    result: Vec<AccountEntry>,
+    result: Option<Vec<AccountEntry>>,
+    error: Option<RpcError>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RpcError {
+    code: i32,
+    message: String,
 }
 
 #[derive(Debug, Deserialize)]
