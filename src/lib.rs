@@ -411,7 +411,8 @@ impl ValidatorConfigClient {
             "params": [
                 SOLANA_CONFIG_PROGRAM_ID,
                 {
-                    "encoding": "base64"
+                    "encoding": "base64+zstd",
+                    "commitment": "confirmed"
                 }
             ]
         });
@@ -545,10 +546,24 @@ struct AccountData {
     rent_epoch: u64,
 }
 
+/// Decode base64+zstd compressed data, with fallback to plain base64
+fn decode_base64_zstd(base64_data: &str) -> Option<Vec<u8>> {
+    // First decode from base64
+    let compressed = general_purpose::STANDARD.decode(base64_data).ok()?;
+
+    // Try to decompress with zstd
+    if let Ok(decompressed) = zstd::decode_all(&compressed[..]) {
+        return Some(decompressed);
+    }
+
+    // Fallback: if zstd decompression fails, assume it's plain base64 (for backwards compatibility)
+    Some(compressed)
+}
+
 /// Extract validator info from base64-encoded account data
 fn extract_validator_info_from_base64(base64_data: &str) -> Option<ValidatorInfo> {
-    // Decode the base64 data
-    let decoded = general_purpose::STANDARD.decode(base64_data).ok()?;
+    // Decode the base64+zstd data
+    let decoded = decode_base64_zstd(base64_data)?;
 
     // Look for JSON starting with '{'
     let json_start = decoded.iter().position(|&b| b == b'{')?;
@@ -582,8 +597,8 @@ fn extract_validator_info_from_base64(base64_data: &str) -> Option<ValidatorInfo
 /// Extract both validator identity and info from base64-encoded account data
 /// Returns `ValidatorInfo` with `validator_identity` field populated
 fn extract_validator_identity_and_info_from_base64(base64_data: &str) -> Option<ValidatorInfo> {
-    // Decode the base64 data
-    let decoded = general_purpose::STANDARD.decode(base64_data).ok()?;
+    // Decode the base64+zstd data
+    let decoded = decode_base64_zstd(base64_data)?;
 
     // First try to extract validator identity (this is the most important part)
     let validator_identity = if decoded.len() >= 66 {
