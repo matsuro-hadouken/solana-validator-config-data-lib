@@ -10,7 +10,8 @@ Rust library for extracting validator configuration data from Solana RPC endpoin
 - Extracts validator identity keys and metadata from program accounts
 - Direct RPC calls without Solana SDK dependency
 - Supports mainnet, testnet, devnet, and custom RPC endpoints
-- Input validation and error handling
+- Optimized with zstd compression and confirmed commitment for faster calls
+- Input validation and comprehensive error handling
 - Configurable timeout and concurrency limits
 
 ## Quick Start
