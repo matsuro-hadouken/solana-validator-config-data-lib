@@ -185,12 +185,11 @@ impl ValidatorInfo {
 
     /// Check if this validator has meaningful configuration data
     #[must_use]
-    pub const fn has_config(&self) -> bool {
-        self.validator_identity.is_some()
-            || self.name.is_some()
-            || self.website.is_some()
-            || self.keybase_username.is_some()
-            || self.details.is_some()
+    pub fn has_config(&self) -> bool {
+        self.name.as_ref().map_or(false, |s| !s.trim().is_empty())
+            || self.website.as_ref().map_or(false, |s| !s.trim().is_empty())
+            || self.keybase_username.as_ref().map_or(false, |s| !s.trim().is_empty())
+            || self.details.as_ref().map_or(false, |s| !s.trim().is_empty())
     }
 }
 
