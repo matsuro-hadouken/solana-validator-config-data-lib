@@ -186,10 +186,10 @@ impl ValidatorInfo {
     /// Check if this validator has meaningful configuration data
     #[must_use]
     pub fn has_config(&self) -> bool {
-        self.name.as_ref().map_or(false, |s| !s.trim().is_empty())
-            || self.website.as_ref().map_or(false, |s| !s.trim().is_empty())
-            || self.keybase_username.as_ref().map_or(false, |s| !s.trim().is_empty())
-            || self.details.as_ref().map_or(false, |s| !s.trim().is_empty())
+        self.name.as_ref().is_some_and(|s| !s.trim().is_empty())
+            || self.website.as_ref().is_some_and(|s| !s.trim().is_empty())
+            || self.keybase_username.as_ref().is_some_and(|s| !s.trim().is_empty())
+            || self.details.as_ref().is_some_and(|s| !s.trim().is_empty())
     }
 }
 
