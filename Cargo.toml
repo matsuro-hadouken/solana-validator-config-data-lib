@@ -1,6 +1,6 @@
 [package]
 name = "solana-validator-config"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "A Rust library for retrieving Solana validator configuration data from the blockchain. Supports private RPC endpoints (QuickNode, Alchemy, Helius, etc.) and follows official Solana validator-info.json specification."
 license = "MIT"
