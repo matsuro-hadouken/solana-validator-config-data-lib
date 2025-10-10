@@ -10,7 +10,7 @@
 //! ## Quick Start
 //!
 //! ```rust
-//! use solana_validator_config::{ValidatorConfigClient, SolanaNetwork};
+//! use solana_validator_info::{ValidatorConfigClient, SolanaNetwork};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -69,7 +69,7 @@ impl SolanaNetwork {
     /// # Examples
     ///
     /// ```
-    /// use solana_validator_config::SolanaNetwork;
+    /// use solana_validator_info::SolanaNetwork;
     ///
     /// // Using a private RPC provider
     /// let network = SolanaNetwork::custom("https://my-private-rpc.com");
@@ -421,7 +421,7 @@ impl ValidatorConfigClient {
     /// # Examples
     ///
     /// ```
-    /// use solana_validator_config::ValidatorConfigClient;
+    /// use solana_validator_info::ValidatorConfigClient;
     ///
     /// // Using a private RPC endpoint
     /// let client = ValidatorConfigClient::new_custom("https://my-private-rpc.com");
@@ -447,7 +447,7 @@ impl ValidatorConfigClient {
     /// # Examples
     ///
     /// ```
-    /// use solana_validator_config::{ValidatorConfigClient, ClientConfig};
+    /// use solana_validator_info::{ValidatorConfigClient, ClientConfig};
     ///
     /// let config = ClientConfig::new()
     ///     .with_timeout(60).unwrap()

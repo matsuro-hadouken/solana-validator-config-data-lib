@@ -1,13 +1,13 @@
 //! Example demonstrating improved error handling and retry logic
 
-use solana_validator_config::{SolanaNetwork, ValidatorConfigClient, ValidatorConfigError};
+use solana_validator_info::{SolanaNetwork, ValidatorConfigClient, ValidatorConfigError};
 use std::time::Duration;
 use tokio::time::sleep;
 
 async fn fetch_with_retry(
     client: &ValidatorConfigClient,
     max_retries: u32,
-) -> Result<Vec<solana_validator_config::ValidatorInfo>, ValidatorConfigError> {
+) -> Result<Vec<solana_validator_info::ValidatorInfo>, ValidatorConfigError> {
     let mut last_error = None;
 
     for attempt in 0..=max_retries {

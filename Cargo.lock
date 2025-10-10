@@ -1235,8 +1235,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "solana-validator-config"
-version = "0.2.1"
+name = "solana-validator-info"
+version = "0.3.0"
 dependencies = [
  "base64",
  "bs58",

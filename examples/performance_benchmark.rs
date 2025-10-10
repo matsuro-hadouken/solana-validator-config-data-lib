@@ -7,7 +7,7 @@
 //! - Memory allocation patterns
 //! - Overall throughput
 
-use solana_validator_config::{SolanaNetwork, ValidatorConfigClient};
+use solana_validator_info::{SolanaNetwork, ValidatorConfigClient};
 use std::time::Instant;
 
 #[tokio::main]
@@ -75,11 +75,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn estimate_memory_usage(validators: &[solana_validator_config::ValidatorInfo]) -> f64 {
+fn estimate_memory_usage(validators: &[solana_validator_info::ValidatorInfo]) -> f64 {
     validators
         .iter()
         .map(|v| {
-            let mut size = std::mem::size_of::<solana_validator_config::ValidatorInfo>() as f64;
+            let mut size = std::mem::size_of::<solana_validator_info::ValidatorInfo>() as f64;
 
             if let Some(ref s) = v.validator_identity {
                 size += s.len() as f64;
@@ -147,7 +147,7 @@ async fn benchmark_json_parsing() {
 
     let start = Instant::now();
     for _ in 0..iterations {
-        let _result: Result<solana_validator_config::ValidatorInfo, _> =
+        let _result: Result<solana_validator_info::ValidatorInfo, _> =
             serde_json::from_str(test_data);
     }
     let parse_time = start.elapsed();

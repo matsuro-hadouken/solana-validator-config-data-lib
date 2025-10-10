@@ -5,7 +5,7 @@
 //! IMPORTANT: This library now returns the actual validator identity public keys
 //! that can be used to connect to validators, not Config Program account keys.
 
-use solana_validator_config::{SolanaNetwork, ValidatorConfigClient, ValidatorInfo};
+use solana_validator_info::{SolanaNetwork, ValidatorConfigClient, ValidatorInfo};
 use std::collections::HashMap;
 
 /// Example struct showing how you might integrate validator data into your own types

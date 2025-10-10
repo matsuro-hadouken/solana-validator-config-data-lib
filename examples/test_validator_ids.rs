@@ -1,6 +1,6 @@
 //! Test validator identity extraction
 
-use solana_validator_config::{SolanaNetwork, ValidatorConfigClient};
+use solana_validator_info::{SolanaNetwork, ValidatorConfigClient};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
