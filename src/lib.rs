@@ -559,24 +559,29 @@ impl ValidatorConfigClient {
                 }
             } else {
                 parse_errors += 1;
-                if parse_errors <= 5 {
-                    // Log first few parse errors
-                    log::debug!("Failed to parse validator config at index {}", index);
+
+                if parse_errors <= 3 {
+                    // Log first few non-validator accounts at debug level
+                    log::debug!(
+                        "Skipped non-validator config account at index {}: {}",
+                        index,
+                        entry.pubkey
+                    );
                 }
             }
         }
 
         if parse_errors > 0 {
-            log::warn!(
-                "Failed to parse {} out of {} validator configs",
-                parse_errors,
-                total_accounts
+            log::debug!(
+                "Skipped {} non-validator config accounts (system configs, test data, etc.)",
+                parse_errors
             );
         }
 
         log::info!(
-            "Successfully extracted {} valid validator configs",
-            validators.len()
+            "Successfully extracted {} valid validator configs, rejected {} bogus accounts",
+            validators.len(),
+            parse_errors
         );
         Ok(validators)
     }
