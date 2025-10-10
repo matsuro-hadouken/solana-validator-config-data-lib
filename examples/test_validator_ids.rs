@@ -13,14 +13,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test known validators
     let known_validators = [
-        "GwHH8ciFhR8vejWCqmg8FWZUCNtubPY2esALvy5tBvji", // Test validator  
-        "farbZXR7aBQSMCYiUXzoS4pRUsvuCZ38f6AXMXiKACf", // Farben
+        "GwHH8ciFhR8vejWCqmg8FWZUCNtubPY2esALvy5tBvji", // Test validator
+        "farbZXR7aBQSMCYiUXzoS4pRUsvuCZ38f6AXMXiKACf",  // Farben
     ];
 
     println!("\n--- Testing specified validators ---");
     for known in &known_validators {
         if let Some(info) = configs.iter().find(|info| {
-            info.validator_identity.as_ref().is_some_and(|identity| identity == known)
+            info.validator_identity
+                .as_ref()
+                .is_some_and(|identity| identity == known)
         }) {
             println!(
                 "[OK] Found {}: {}",

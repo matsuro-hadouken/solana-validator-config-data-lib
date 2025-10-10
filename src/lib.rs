@@ -116,24 +116,40 @@ fn sanitize_string(input: String) -> String {
     };
 
     // Clean up the string with better replacement strategy
-    let cleaned = truncated
-        .chars()
-        .map(|c| {
-            match c {
-                // Replace null bytes with spaces (better UX)
-                '\0' => ' ',
-                // Replace other control characters with newlines (better readability)
-                c if c.is_control() && c != '\n' && c != '\r' && c != '\t' => '\n',
-                // Keep everything else including emojis and Unicode
-                c => c,
-            }
-        })
-        .collect::<String>();
+    let mut result = String::with_capacity(truncated.len());
+    for c in truncated.chars() {
+        match c {
+            // Replace null bytes with spaces (better UX)
+            '\0' => result.push(' '),
+            // Replace other control characters with newlines (better readability)
+            c if c.is_control() && c != '\n' && c != '\r' && c != '\t' => result.push('\n'),
+            // Keep everything else including emojis and Unicode
+            c => result.push(c),
+        }
+    }
 
-    // Clean up multiple consecutive newlines with a regex-like approach
-    let mut result = cleaned;
-    while result.contains("\n\n\n") {
-        result = result.replace("\n\n\n", "\n\n");
+    // Clean up multiple consecutive newlines efficiently
+    if result.contains("\n\n\n") {
+        let mut chars: Vec<char> = result.chars().collect();
+        let mut write_idx = 0;
+        let mut consecutive_newlines = 0;
+
+        for read_idx in 0..chars.len() {
+            if chars[read_idx] == '\n' {
+                consecutive_newlines += 1;
+                if consecutive_newlines <= 2 {
+                    chars[write_idx] = chars[read_idx];
+                    write_idx += 1;
+                }
+            } else {
+                consecutive_newlines = 0;
+                chars[write_idx] = chars[read_idx];
+                write_idx += 1;
+            }
+        }
+
+        chars.truncate(write_idx);
+        result = chars.into_iter().collect();
     }
 
     // Only trim spaces, not newlines
@@ -188,7 +204,10 @@ impl ValidatorInfo {
     pub fn has_config(&self) -> bool {
         self.name.as_ref().is_some_and(|s| !s.trim().is_empty())
             || self.website.as_ref().is_some_and(|s| !s.trim().is_empty())
-            || self.keybase_username.as_ref().is_some_and(|s| !s.trim().is_empty())
+            || self
+                .keybase_username
+                .as_ref()
+                .is_some_and(|s| !s.trim().is_empty())
             || self.details.as_ref().is_some_and(|s| !s.trim().is_empty())
     }
 }
@@ -214,24 +233,18 @@ pub enum ValidatorConfigError {
 
     /// Rate limit exceeded (HTTP 429) - temporary error, should retry with backoff
     #[error("Rate limit exceeded: {message}")]
-    RateLimitExceeded { 
+    RateLimitExceeded {
         message: String,
         retry_after: Option<u64>, // seconds to wait before retrying
     },
 
     /// RPC-specific errors from Solana JSON-RPC responses
     #[error("RPC error (code {code}): {message}")]
-    RpcError { 
-        code: i32,
-        message: String,
-    },
+    RpcError { code: i32, message: String },
 
     /// HTTP errors (non-429 status codes)
     #[error("HTTP error {status}: {message}")]
-    HttpError {
-        status: u16,
-        message: String,
-    },
+    HttpError { status: u16, message: String },
 
     /// Configuration validation errors
     #[error("Invalid configuration: {0}")]
@@ -298,7 +311,7 @@ impl ClientConfig {
     }
 
     /// Set the timeout with validation
-    /// 
+    ///
     /// # Errors
     /// Returns `ValidatorConfigError::InvalidConfig` if timeout is 0
     pub fn with_timeout(mut self, timeout_seconds: u64) -> Result<Self, ValidatorConfigError> {
@@ -318,7 +331,7 @@ impl ClientConfig {
     }
 
     /// Set maximum concurrent requests with validation
-    /// 
+    ///
     /// # Errors
     /// Returns `ValidatorConfigError::InvalidConfig` if `max_requests` is 0
     pub fn with_max_concurrent_requests(
@@ -378,7 +391,7 @@ impl ValidatorConfigClient {
     }
 
     /// Create a new client with custom configuration
-    /// 
+    ///
     /// # Panics
     /// Panics if the HTTP client cannot be created with the given configuration
     #[must_use]
@@ -450,7 +463,7 @@ impl ValidatorConfigClient {
     }
 
     /// Fetch all validator configurations from the network
-    /// 
+    ///
     /// # Errors
     /// Returns `ValidatorConfigError` if the RPC request fails or response cannot be parsed
     pub async fn fetch_all_validators(&self) -> Result<Vec<ValidatorInfo>, ValidatorConfigError> {
@@ -481,23 +494,24 @@ impl ValidatorConfigClient {
 
         if !response.status().is_success() {
             let status = response.status();
-            
+
             // Extract retry-after header before consuming response
-            let retry_after = response.headers()
+            let retry_after = response
+                .headers()
                 .get("retry-after")
                 .and_then(|h| h.to_str().ok())
                 .and_then(|s| s.parse().ok());
-            
+
             let error_body = response.text().await.unwrap_or_default();
             log::error!("RPC request failed with status {status}: {error_body}");
-            
+
             if status.as_u16() == 429 {
                 return Err(ValidatorConfigError::RateLimitExceeded {
-                    message: format!("Request failed with status 429 Too Many Requests: {error_body}"),
+                    message: "Rate limit exceeded. Too many requests to RPC endpoint.".to_string(),
                     retry_after,
                 });
             }
-            
+
             return Err(ValidatorConfigError::HttpError {
                 status: status.as_u16(),
                 message: format!("Request failed with status {status}: {error_body}"),
@@ -514,17 +528,14 @@ impl ValidatorConfigClient {
             });
         }
 
-        let result = rpc_response.result.ok_or_else(|| {
-            ValidatorConfigError::RpcError {
+        let result = rpc_response
+            .result
+            .ok_or_else(|| ValidatorConfigError::RpcError {
                 code: -1,
                 message: "Missing result field in RPC response".to_string(),
-            }
-        })?;
+            })?;
 
-        log::info!(
-            "Received {} config accounts from RPC",
-            result.len()
-        );
+        log::info!("Received {} config accounts from RPC", result.len());
 
         let total_accounts = result.len();
         let mut validators = Vec::with_capacity(total_accounts);
@@ -571,7 +582,7 @@ impl ValidatorConfigClient {
     }
 
     /// Get validator statistics
-    /// 
+    ///
     /// # Errors
     /// Returns `ValidatorConfigError` if fetching validators fails
     pub async fn get_validator_stats(&self) -> Result<ValidatorStats, ValidatorConfigError> {
@@ -697,7 +708,7 @@ fn extract_validator_identity_and_info_from_base64(base64_data: &str) -> Option<
     let validator_identity = if decoded.len() >= 66 {
         let key_bytes = &decoded[34..66];
         let base58_key = bs58::encode(key_bytes).into_string();
-        
+
         // Basic validation: Solana public keys are typically 32-44 characters in base58
         if base58_key.len() >= 32 && base58_key.len() <= 44 {
             // Additional validation: check if it looks like a valid public key
@@ -728,7 +739,7 @@ fn extract_validator_identity_and_info_from_base64(base64_data: &str) -> Option<
         while let Some(json_start) = decoded[search_start..].iter().position(|&b| b == b'{') {
             let actual_start = search_start + json_start;
             let json_slice = &decoded[actual_start..];
-            
+
             // Try UTF-8 conversion for this position
             if let Ok(json_str) = std::str::from_utf8(json_slice) {
                 // Try to parse JSON directly first
@@ -748,10 +759,10 @@ fn extract_validator_identity_and_info_from_base64(base64_data: &str) -> Option<
                     }
                 }
             }
-            
+
             // Move to the next potential '{' position
             search_start = actual_start + 1;
-            
+
             // Safety: don't search forever
             if search_start >= decoded.len() {
                 break;
@@ -775,19 +786,27 @@ fn extract_validator_identity_and_info_from_base64(base64_data: &str) -> Option<
 /// Basic validation for Solana public key format
 fn is_valid_solana_pubkey(key: &str) -> bool {
     // Solana public keys should be valid base58 and decode to exactly 32 bytes
-    bs58::decode(key).into_vec().is_ok_and(|decoded| decoded.len() == 32)
+    bs58::decode(key)
+        .into_vec()
+        .is_ok_and(|decoded| decoded.len() == 32)
 }
 
 /// Clean up common JSON formatting issues
 fn clean_json_string(json_str: &str) -> String {
-    json_str
-        .trim()
-        // Remove null bytes that sometimes appear
-        .replace('\0', "")
-        // Ensure proper string escaping
-        .replace('\n', "\\n")
-        .replace('\r', "\\r")
-        .replace('\t', "\\t")
+    let trimmed = json_str.trim();
+    let mut result = String::with_capacity(trimmed.len() + 20);
+
+    for ch in trimmed.chars() {
+        match ch {
+            '\0' => {} // Skip null bytes
+            '\n' => result.push_str("\\n"),
+            '\r' => result.push_str("\\r"),
+            '\t' => result.push_str("\\t"),
+            c => result.push(c),
+        }
+    }
+
+    result
 }
 
 /// Find the end position of a JSON object in a string
@@ -1124,13 +1143,13 @@ mod tests {
         // Test with plain base64 (should fallback gracefully)
         let plain_data = "hello world";
         let plain_base64 = general_purpose::STANDARD.encode(plain_data.as_bytes());
-        
+
         if let Some(decoded) = decode_base64_zstd(&plain_base64) {
             assert_eq!(std::str::from_utf8(&decoded).unwrap(), plain_data);
         } else {
             panic!("Failed to decode plain base64");
         }
-        
+
         // Test with invalid base64 (should return None)
         assert!(decode_base64_zstd("invalid-base64!@#").is_none());
     }

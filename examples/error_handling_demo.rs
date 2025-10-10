@@ -1,6 +1,6 @@
 //! Example demonstrating improved error handling and retry logic
 
-use solana_validator_config::{ValidatorConfigClient, ValidatorConfigError, SolanaNetwork};
+use solana_validator_config::{SolanaNetwork, ValidatorConfigClient, ValidatorConfigError};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -20,13 +20,13 @@ async fn fetch_with_retry(
             }
             Err(e) => {
                 println!("[ATTEMPT {}] Failed: {}", attempt + 1, e);
-                
+
                 // Check if error is retryable
                 if !e.is_retryable() {
                     println!("[ERROR] Non-retryable error, giving up");
                     return Err(e);
                 }
-                
+
                 // Get suggested retry delay
                 if let Some(delay) = e.retry_delay() {
                     println!("[RETRY] Waiting {} seconds before retry...", delay);
@@ -34,10 +34,13 @@ async fn fetch_with_retry(
                 } else {
                     // Default exponential backoff
                     let delay = 2_u64.pow(attempt);
-                    println!("[BACKOFF] Exponential backoff: waiting {} seconds...", delay);
+                    println!(
+                        "[BACKOFF] Exponential backoff: waiting {} seconds...",
+                        delay
+                    );
                     sleep(Duration::from_secs(delay)).await;
                 }
-                
+
                 last_error = Some(e);
             }
         }
@@ -53,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test with mainnet (should work)
     println!("1. Testing with Mainnet (should succeed):");
     let client = ValidatorConfigClient::new(SolanaNetwork::Mainnet);
-    
+
     match fetch_with_retry(&client, 3).await {
         Ok(validators) => {
             println!("[OK] Successfully fetched {} validators", validators.len());
@@ -78,11 +81,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\n2. Testing error categorization:");
-    
+
     // Test with invalid URL (should be non-retryable)
     println!("Testing with invalid URL:");
-    let bad_client = ValidatorConfigClient::new_custom("http://invalid-url-that-does-not-exist.fake");
-    
+    let bad_client =
+        ValidatorConfigClient::new_custom("http://invalid-url-that-does-not-exist.fake");
+
     match bad_client.fetch_all_validators().await {
         Ok(_) => println!("Unexpected success"),
         Err(e) => {

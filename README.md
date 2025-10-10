@@ -81,6 +81,12 @@ pub struct ValidatorInfo {
 ./dev.sh benchmark      # Performance test
 ```
 
+### Documentation
+
+```bash
+cargo doc --no-deps     # Build library documentation
+```
+
 ## Configuration
 
 ### Custom RPC endpoints:

@@ -21,7 +21,9 @@ struct MyValidatorData {
 impl From<ValidatorInfo> for MyValidatorData {
     fn from(info: ValidatorInfo) -> Self {
         let name = info.display_name().unwrap_or("Unknown").to_string();
-        let description = info.display_description().map(std::string::ToString::to_string);
+        let description = info
+            .display_description()
+            .map(std::string::ToString::to_string);
         let verified = info.keybase_username.is_some();
 
         Self {
@@ -118,8 +120,10 @@ impl ValidatorCache {
     fn new() -> Self {
         Self {
             data: Vec::new(),
-            last_updated: Instant::now().checked_sub(Duration::from_secs(3600)).unwrap(), // Force initial fetch
-            cache_duration: Duration::from_secs(300),                 // 5 minutes
+            last_updated: Instant::now()
+                .checked_sub(Duration::from_secs(3600))
+                .unwrap(), // Force initial fetch
+            cache_duration: Duration::from_secs(300), // 5 minutes
         }
     }
 

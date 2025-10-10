@@ -56,19 +56,51 @@ case "${1:-help}" in
         echo "Running comprehensive quality checks..."
         echo "  ├─ Formatting..."
         cargo fmt --check
-        echo "  ├─ Linting..."
-        cargo clippy -- -D warnings
+        echo "  ├─ Strict linting..."
+        cargo clippy -- -W clippy::all -W clippy::pedantic -W clippy::nursery
         echo "  ├─ Testing..."
         cargo test
+        echo "  ├─ Documentation..."
+        cargo doc --no-deps
         echo "  └─ Building..."
         cargo build
         echo "All quality checks passed!"
         ;;
     
     "benchmark")
-        echo "Running quick benchmark..."
-        echo "RUST_LOG=info cargo run --example simple_usage --release"
-        time RUST_LOG=info cargo run --example simple_usage --release
+        echo "Running performance benchmark..."
+        cargo run --example performance_benchmark
+        ;;
+    
+    "error-demo")
+        echo "Running error handling demonstration..."
+        cargo run --example error_handling_demo
+        ;;
+    
+    "doc")
+        echo "Building library documentation..."
+        cargo doc --no-deps --open
+        ;;
+    
+    "full-check")
+        echo "Running complete quality assurance..."
+        echo "  ├─ Formatting..."
+        cargo fmt --check
+        echo "  ├─ Strict linting..."
+        cargo clippy -- -W clippy::all -W clippy::pedantic -W clippy::nursery
+        echo "  ├─ Unit tests..."
+        cargo test
+        echo "  ├─ Documentation tests..."
+        cargo test --doc
+        echo "  ├─ Documentation build..."
+        cargo doc --no-deps
+        echo "  ├─ All examples..."
+        cargo run --example simple_usage > /dev/null
+        cargo run --example test_validator_ids > /dev/null
+        cargo run --example error_handling_demo > /dev/null
+        echo "  └─ Release build..."
+        cargo build --release
+        echo "Complete quality assurance passed!"
         ;;
     
     "release")
@@ -85,28 +117,32 @@ case "${1:-help}" in
     
     "help"|*)
         echo "Solana Validator Config Development Tool"
-        echo "Usage: $0 {run|example|test-ids|test-rpc|test|check|benchmark|release|validator-test|clean|help}"
+        echo "Usage: $0 {command}"
         echo ""
-        echo "Commands:"
+        echo "Development Commands:"
         echo "  run           - Run the example with info logging"
         echo "  example       - Run the simple integration example"
-        echo "  test-ids      - Test validator identity extraction"
+        echo "  test-ids      - Test identity extraction"
+        echo "  error-demo    - Run error handling demonstration"
         echo "  validator-test- Quick test to verify known validators"
         echo "  test-rpc      - Test RPC endpoints"
         echo "  test          - Run all unit tests"
-        echo "  check         - Run comprehensive quality checks"
-        echo "  benchmark     - Run quick performance benchmark"
-        echo "  release       - Build optimized release version"
+        echo "  benchmark     - Run performance benchmark"
+        echo ""
+        echo "Quality Assurance:"
+        echo "  check         - Standard quality checks"
+        echo "  full-check    - Complete quality assurance"
+        echo "  doc           - Build and open documentation"
+        echo ""
+        echo "Build Commands:"
+        echo "  build         - Debug build"
+        echo "  release       - Optimized release build"
         echo "  clean         - Clean build artifacts"
         echo "  help          - Show this help message"
         echo ""
-        echo "Library Usage:"
-        echo "  This is now a clean library that returns ValidatorInfo structs"
-        echo "  with validator_identity field containing actual validator keys!"
-        echo ""
-        echo "Quick Test:"
-        echo "  ./dev.sh validator-test  # Test validator identity extraction with your specified key"
-        echo "  ./dev.sh example         # Run full integration example"
-        echo "  ./dev.sh check           # Quality assurance"
+        echo "Quick Start:"
+        echo "  ./dev.sh example         # Run integration example"
+        echo "  ./dev.sh full-check      # Complete quality assurance"
+        echo "  ./dev.sh benchmark       # Performance testing"
         ;;
 esac
